@@ -1,0 +1,54 @@
+/* 设计令牌（PR-2 最小集）
+   - 仅包含本阶段用到的颜色、间距、圆角、阴影、动效、层级与断点
+   - 后续阶段在不破坏变量命名前提下可逐步扩展
+*/
+:root {
+  /* 颜色（基础） */
+  --color-bg: #0b0c10;
+  --color-fg: #e5e7eb;
+  --color-accent: #8ab4f8;
+  --color-border: #1f2937;
+  --color-overlay-bg: #111216; /* 覆盖层（卡背）背景色辅助 */
+
+  /* 间距（px） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  /* 圆角（px） */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.24);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+
+  /* 动画时序 */
+  --duration-fast: 120ms;
+  --duration-base: 160ms; /* 默认采用 160ms，介于 120–180ms */
+  --easing-cubic: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* 层级 */
+  --z-content: 1;
+  --z-overlay: 2; /* 覆盖层位于卡面之上 */
+
+  /* 断点（px） */
+  --bp-sm: 360;
+  --bp-md: 768;
+  --bp-lg: 1024;
+
+  /* 卡片特定变量（可被组件覆盖） */
+  --card-radius: var(--radius-md);
+  --card-shadow: var(--shadow-md);
+  --card-reveal-duration: var(--duration-base);
+}
+
+/* 降低动效（系统偏好） */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+  }
+}

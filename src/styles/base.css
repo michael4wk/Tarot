@@ -1,0 +1,29 @@
+/* 基础样式与设计令牌占位：PR-2 将扩展 */
+@import './tokens.css';
+
+html, body, #app { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+}
+
+/* 更清晰的可访问性焦点样式（仅对键盘可见的 focus 进行增强） */
+:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--color-accent) 80%, white);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 40%, transparent);
+}
+
+/* 开发辅助：可选网格/对齐线（后续可通过 dev-only 开关控制挂载） */
+.dev-guides {
+  box-shadow: inset 0 0 0 1px rgba(138, 180, 248, 0.2);
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(138, 180, 248, 0.08) 0,
+    rgba(138, 180, 248, 0.08) 1px,
+    transparent 1px,
+    transparent 8px
+  );
+}
