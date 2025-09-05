@@ -2,11 +2,16 @@
   <main style="display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100%;gap:24px;padding:24px 16px;">
     <h1>工程基座就绪</h1>
 
-    <!-- PR-2 Checkpoint A：组件层可视化确认（临时演示段） -->
+    <!-- PR-2 Checkpoint A：组件层可视化确认（五张随机抽取 + 正/逆位 + 选择命中） -->
     <section class="dev-guides" style="width:100%;padding:16px;border-radius:12px;">
-      <h2 style="margin:0 0 12px 0;font-size:18px;">组件演示 · CardGrid + RevealCard</h2>
+      <h2 style="margin:0 0 12px 0;font-size:18px;">五张牌抽取 · 正/逆位 · 选择命中</h2>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+        <button type="button" @click="onRedraw" :disabled="isLoading || selectedId === null" style="padding:8px 12px;border-radius:8px;">开始新一轮</button>
+        <span v-if="isLoading" style="opacity:.8;">加载中...</span>
+        <span v-if="selectedId" style="opacity:.9;">已选择：{{ selectedSummary }}</span>
+      </div>
       <CardGrid
-        :cards="demoCards"
+        :cards="uiCards"
         :gap="16"
         :columns="{ sm: 2, md: 3, lg: 4 }"
         :disabled-ids="disabledIds"
@@ -18,36 +23,87 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { CardGrid } from '@/components';
-import { attachFrontSrc, type TarotCardLite } from '@/utils/images';
+import type { StandardCard } from '@/services/tarotService';
+import { getAllStandardizedCardsCached, pickFiveFromDeck } from '@/services/tarotService';
+// 开发期可视化：图片映射覆盖率校验（仅 DEV 打印报告，无副作用）
+import { logValidationReport } from '@/utils/imageMappingValidator';
 
-// 组件消费层类型：仅需要 id/frontSrc/alt
-interface DemoCard { id: string; frontSrc: string; alt?: string }
+// 组件消费层类型：仅需要 id/frontSrc/alt/isReversed
+interface DemoCard { id: string; frontSrc: string; alt?: string; isReversed?: boolean }
 
-// 数据装配层：使用图片映射工具，将 API/域模型数据转换为 frontSrc
-const tarotSource: Array<TarotCardLite & { id: string; alt?: string }> = [
-  // 大阿卡纳示例（包含异常映射 high_priestess → priestess）
-  { id: 'maj-00', type: 'major', value: 'fool', alt: '愚者 Fool' },
-  { id: 'maj-02', type: 'major', value: 'high_priestess', alt: '女祭司 The High Priestess' },
-  { id: 'maj-10', type: 'major', value: 'wheel_of_fortune', alt: '命运之轮 Wheel of Fortune' },
-  { id: 'maj-12', type: 'major', value: 'hanged_man', alt: '倒吊人 The Hanged Man' },
-  // 小阿卡纳示例（覆盖四花色与数字/宫廷）
-  { id: 'min-c-02', type: 'minor', suit: 'cups', value: 'two', alt: '圣杯二 Two of Cups' },
-  { id: 'min-w-a',  type: 'minor', suit: 'wands', value: 'ace', alt: '权杖首牌 Ace of Wands' },
-  { id: 'min-s-10', type: 'minor', suit: 'swords', value: 'ten', alt: '宝剑十 Ten of Swords' },
-  { id: 'min-p-q',  type: 'minor', suit: 'pentacles', value: 'queen', alt: '星币皇后 Queen of Pentacles' }
-];
-
-// 通过工具函数生成 frontSrc，并仅暴露组件所需字段
-const demoCards: DemoCard[] = attachFrontSrc(tarotSource).map(({ id, frontSrc, alt }) => ({ id, frontSrc, alt }));
-
-const disabledIds: string[] = ['min-s-10'];
+const isLoading = ref(false);
+const selectedId = ref<string | null>(null);
 const revealedMap = reactive<Record<string, boolean>>({});
+const disabledIds = ref<string[]>([]);
+
+const deck78 = ref<StandardCard[]>([]);
+const five = ref<StandardCard[]>([]);
+const uiCards = computed<DemoCard[]>(() => five.value.map(c => ({
+  id: c.id,
+  frontSrc: c.frontSrc,
+  alt: c.name,
+  isReversed: c.isReversed
+})));
+
+const selectedSummary = computed(() => {
+  const c = five.value.find(x => x.id === selectedId.value);
+  if (!c) return '';
+  return `${c.name}${c.isReversed ? '（逆位）' : '（正位）'}`;
+});
+
+async function ensureDeck() {
+  // 修复说明：为避免历史缓存中的 frontSrc 沿用旧的映射结果（导致回退卡背），
+  // 开发模式下强制刷新一次数据源，确保新的映射逻辑（images.ts）生效。
+  deck78.value = await getAllStandardizedCardsCached({ reversedProbability: 0.3, forceRefresh: import.meta.env.DEV });
+}
+
+function redrawFive() {
+  five.value = pickFiveFromDeck(deck78.value);
+}
+
+async function loadFive() {
+  isLoading.value = true;
+  try {
+    selectedId.value = null;
+    Object.keys(revealedMap).forEach(k => delete (revealedMap as any)[k]);
+    disabledIds.value = [];
+    if (deck78.value.length === 0) {
+      await ensureDeck();
+    }
+    redrawFive();
+  } finally {
+    isLoading.value = false;
+  }
+}
 
 function onUpdateMap(payload: { id: string; revealed: boolean }) {
+  // 首次揭示即视为选择命中：锁定其他卡片
   revealedMap[payload.id] = payload.revealed;
+  if (payload.revealed && !selectedId.value) {
+    selectedId.value = payload.id;
+    disabledIds.value = uiCards.value.filter(c => c.id !== payload.id).map(c => c.id);
+  }
 }
+
+async function onRedraw() {
+  // 方案一：首次揭示后按钮可点，点击开始新一轮（保持同一牌堆）
+  if (!selectedId.value) return; // 未揭示前不执行
+  selectedId.value = null;
+  Object.keys(revealedMap).forEach(k => delete (revealedMap as any)[k]);
+  disabledIds.value = [];
+  redrawFive();
+}
+
+onMounted(() => {
+  // 启动时拉取数据 + 开发期输出图片映射覆盖率报告
+  loadFive();
+  if (import.meta.env.DEV) {
+    // 仅在开发环境打印一次映射覆盖率，有助于发现资源命名或映射规则问题
+    logValidationReport();
+  }
+});
 </script>
 
 <style scoped>

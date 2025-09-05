@@ -2,7 +2,7 @@
   <!-- 组件：RevealCard（覆盖层透明揭示方案） -->
   <div
     class="reveal-card"
-    :class="{ 'is-revealed': innerRevealed, 'is-disabled': disabled }"
+    :class="{ 'is-revealed': innerRevealed, 'is-disabled': disabled, 'is-reversed': reversed }"
     role="button"
     tabindex="0"
     :aria-pressed="innerRevealed"
@@ -32,17 +32,20 @@ interface Props {
   frontAlt?: string; // 卡面可访问描述（揭示后用于 aria-label 的一部分）
   revealed?: boolean; // 受控属性（v-model:revealed 支持）
   disabled?: boolean;
+  reversed?: boolean; // 是否逆位，逆位时卡面旋转 180 度
 }
 
 // 通过 withDefaults 提供默认值：
 // - frontSrc 默认为空字符串（当为空时，组件展示插槽内容）
 // - frontAlt 默认为空字符串（避免无意义的 alt）
 // - revealed/disabled 默认 false
+// - reversed 默认 false
 const props = withDefaults(defineProps<Props>(), {
   frontSrc: '',
   frontAlt: '',
   revealed: false,
-  disabled: false
+  disabled: false,
+  reversed: false
 });
 
 const emit = defineEmits<{
@@ -57,8 +60,9 @@ watch(
 
 const frontAltComputed = computed(() => props.frontAlt ?? '');
 const ariaLabel = computed(() => {
+  const ori = props.reversed ? '（逆位）' : '';
   return innerRevealed.value
-    ? (props.frontAlt ? `已揭示：${props.frontAlt}` : '已揭示')
+    ? (props.frontAlt ? `已揭示：${props.frontAlt}${ori}` : `已揭示${ori}`)
     : '未揭示卡片，可按空格或回车键揭示';
 });
 
@@ -114,7 +118,10 @@ const overlayStyle = computed(() => ({
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform var(--card-reveal-duration) var(--easing-cubic);
 }
+/* 逆位：卡面旋转 180 度（轻量视觉表达，不影响可达性） */
+.reveal-card.is-reversed .reveal-card__img { transform: rotate(180deg); }
 
 .reveal-card__overlay {
   z-index: var(--z-overlay);

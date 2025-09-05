@@ -12,6 +12,7 @@
         v-model:revealed="revealedState[c.id]"
         :front-src="c.frontSrc"
         :front-alt="c.alt"
+        :reversed="c.isReversed"
         :disabled="disabledSet.has(c.id)"
         @update:revealed="(v) => onChildToggle(c.id, v)"
       />
@@ -30,7 +31,7 @@ import { computed, onMounted, reactive, ref, watch, nextTick, type ComponentPubl
 import RevealCard from '@/components/RevealCard.vue';
 import { isArrowKey, nextIndexByArrow, type ArrowKey } from '@/utils/a11y';
 
-interface SimpleCard { id: string; frontSrc: string; alt?: string }
+interface SimpleCard { id: string; frontSrc: string; alt?: string; isReversed?: boolean }
 
 interface Props {
   cards: SimpleCard[];

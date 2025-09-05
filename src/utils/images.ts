@@ -49,6 +49,81 @@ const MAJOR_EXCEPTIONS: Record<string, string> = {
   hanged_man: 'hanged'
 };
 
+// 新增：大阿卡纳的“权威顺序表”（0..21）与辅助映射，
+// 用于将 API 可能返回的多种写法（数字/英文数字/罗马数字/含 The_ 前缀的名称）统一到 slug。
+const MAJOR_ORDER_SLUGS: readonly string[] = [
+  'fool',
+  'magician',
+  'high_priestess',
+  'empress',
+  'emperor',
+  'hierophant',
+  'lovers',
+  'chariot',
+  'strength',
+  'hermit',
+  'wheel_of_fortune',
+  'justice',
+  'hanged_man',
+  'death',
+  'temperance',
+  'devil',
+  'tower',
+  'star',
+  'moon',
+  'sun',
+  'judgement',
+  'world'
+];
+const MAJOR_SLUG_SET = new Set(MAJOR_ORDER_SLUGS);
+const ROMAN_TO_NUM: Record<string, number> = {
+  i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10,
+  xi: 11, xii: 12, xiii: 13, xiv: 14, xv: 15, xvi: 16, xvii: 17, xviii: 18, xix: 19, xx: 20, xxi: 21
+};
+const WORDNUM_TO_NUM: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, twenty_one: 21, twentyone: 21
+};
+
+/**
+ * 归一化大阿卡纳的 value：
+ * - 支持数字（"0".."21"）、英文数字（"zero".."twenty_one"）、罗马数字（"i".."xxi"）
+ * - 兼容可选的 "the_" 前缀（例如 "the_chariot" → "chariot"）
+ * - 若本身已是我们维护的 slug 或异常映射键，则直接返回
+ */
+function normalizeMajorValueToSlug(raw: string): string {
+  let s = (raw || '').trim().toLowerCase().replace(/[\s\-]+/g, '_');
+  if (!s) return s;
+
+  // 去除可选前缀 "the_"（API/第三方来源偶尔带有该前缀）
+  s = s.replace(/^the_/, '');
+
+  // 若已是我们认可的 slug 或属于异常映射键，则直接返回
+  if (MAJOR_SLUG_SET.has(s) || s in MAJOR_EXCEPTIONS) return s;
+
+  // 纯数字 → 直接按 0..21 映射
+  if (/^\d+$/.test(s)) {
+    const idx = parseInt(s, 10);
+    if (idx >= 0 && idx <= 21) return MAJOR_ORDER_SLUGS[idx];
+  }
+
+  // 英文数字词 → 0..21
+  if (s in WORDNUM_TO_NUM) {
+    const idx = WORDNUM_TO_NUM[s];
+    return MAJOR_ORDER_SLUGS[idx];
+  }
+
+  // 罗马数字 → 1..21（注意：0 无罗马数字，对应 Fool）
+  if (s in ROMAN_TO_NUM) {
+    const idx = ROMAN_TO_NUM[s];
+    return MAJOR_ORDER_SLUGS[idx];
+  }
+
+  // 兜底：返回标准化后的原值（允许后续异常表再修）
+  return s;
+}
+
 // 5) 小阿卡纳 rank 规则映射：API 的 value → 文件名中的 rank
 const RANK_MAP: Record<string, string> = {
   ace: 'ace',
@@ -84,8 +159,11 @@ export function getCardImageFilename(card: TarotCardLite): string {
 
   if (type === 'major') {
     // 大阿：major_arcana_{slug}.png
-    const raw = (card.value || '').trim().toLowerCase();
-    const slug = MAJOR_EXCEPTIONS[raw] ?? raw; // 应用异常映射
+    // 重要修复：某些远端数据源会将大阿卡纳的 value 返回为数字（"1".."21"）、
+    // 英文数字（"zero"..）或罗马数字（"xii" 等）。
+    // 这里先归一化为我们维护的 slug，再应用异常映射表以匹配资源文件名。
+    const canonical = normalizeMajorValueToSlug(card.value || '');
+    const slug = MAJOR_EXCEPTIONS[canonical] ?? canonical; // 应用异常映射
     return `major_arcana_${slug}.png`;
   }
 
