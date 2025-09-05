@@ -131,3 +131,35 @@ describe('images mapping - url lookup', () => {
     expect(warnSpy).toHaveBeenCalled();
   });
 });
+
+describe('images mapping - major normalization compatibility', () => {
+  // 归一化兼容性覆盖用例：数字/英文数字/罗马数字/the_ 前缀/异常映射
+  // 每个元组：[输入值，期望的文件 slug]
+  const cases: Array<[string, string]> = [
+    ['0', 'fool'], // 数字 → 愚者
+    ['zero', 'fool'], // 英文数字 → 愚者
+    ['i', 'magician'], // 罗马数字 I → 魔术师（索引 1）
+    ['xii', 'hanged'], // 罗马数字 XII → 倒吊人（异常映射到 hanged）
+    ['21', 'world'], // 数字 → 世界
+    ['twenty_one', 'world'], // 英文数字（带下划线）→ 世界
+    ['twentyone', 'world'], // 英文数字（无下划线）→ 世界
+    ['the_chariot', 'chariot'], // the_ 前缀 → 战车
+    ['the_high_priestess', 'priestess'], // the_ 前缀 + 异常映射 → 女祭司文件名 priestess
+    ['the_wheel_of_fortune', 'fortune'] // the_ 前缀 + 异常映射 → 命运之轮文件名 fortune
+  ]
+
+  it('getCardImageFilename normalizes to correct slug', () => {
+    for (const [input, slug] of cases) {
+      const fn = getCardImageFilename({ type: 'major', value: input } as any)
+      expect(fn).toBe(`major_arcana_${slug}.png`)
+    }
+  })
+
+  it('getCardImagePath resolves to existing url (not fallback)', () => {
+    for (const [input, slug] of cases) {
+      const url = getCardImagePath({ type: 'major', value: input } as any)
+      expect(url).not.toBe(fallbackUrl)
+      expect(url).toContain(`major_arcana_${slug}.png`)
+    }
+  })
+})
