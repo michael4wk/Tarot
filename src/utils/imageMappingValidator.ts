@@ -8,22 +8,58 @@ import { getCardImagePath, getCardImageFilename, type TarotCardLite } from './im
 // API 标准的78张卡牌配置（与 tarotService.ts 的 buildLocalFallback78 保持一致）
 const STANDARD_78_CARDS: TarotCardLite[] = [
   // 22张大阿卡纳
-  ...([
-    'fool','magician','high_priestess','empress','emperor','hierophant','lovers','chariot','strength','hermit','wheel_of_fortune','justice','hanged_man','death','temperance','devil','tower','star','moon','sun','judgement','world'
+  ...[
+    'fool',
+    'magician',
+    'high_priestess',
+    'empress',
+    'emperor',
+    'hierophant',
+    'lovers',
+    'chariot',
+    'strength',
+    'hermit',
+    'wheel_of_fortune',
+    'justice',
+    'hanged_man',
+    'death',
+    'temperance',
+    'devil',
+    'tower',
+    'star',
+    'moon',
+    'sun',
+    'judgement',
+    'world',
   ].map((value, index) => ({
     type: 'major' as const,
     value,
-    suit: undefined
-  }))),
+    suit: undefined,
+  })),
 
   // 56张小阿卡纳 = 4花色 × 14等级
-  ...(['cups', 'wands', 'swords', 'pentacles'] as const).flatMap(suit =>
-    ['ace','two','three','four','five','six','seven','eight','nine','ten','page','knight','queen','king'].map(value => ({
+  ...(['cups', 'wands', 'swords', 'pentacles'] as const).flatMap((suit) =>
+    [
+      'ace',
+      'two',
+      'three',
+      'four',
+      'five',
+      'six',
+      'seven',
+      'eight',
+      'nine',
+      'ten',
+      'page',
+      'knight',
+      'queen',
+      'king',
+    ].map((value) => ({
       type: 'minor' as const,
       value,
-      suit
-    }))
-  )
+      suit,
+    })),
+  ),
 ];
 
 export interface ValidationResult {
@@ -59,7 +95,7 @@ export function validateImageMappingCoverage(): ValidationResult {
         card,
         expectedFilename,
         actualUrl,
-        isFallback: true
+        isFallback: true,
       });
     } else {
       found++;
@@ -75,20 +111,21 @@ export function validateImageMappingCoverage(): ValidationResult {
     `覆盖率: ${((found / STANDARD_78_CARDS.length) * 100).toFixed(1)}%`,
     '',
     missing.length > 0 ? '缺失的卡牌映射:' : '✅ 所有卡牌均已正确映射',
-    ...missing.map(item => {
+    ...missing.map((item) => {
       const { card, expectedFilename } = item;
-      const cardName = card.type === 'major' 
-        ? `大阿卡纳: ${card.value}` 
-        : `小阿卡纳: ${card.value} of ${card.suit}`;
+      const cardName =
+        card.type === 'major'
+          ? `大阿卡纳: ${card.value}`
+          : `小阿卡纳: ${card.value} of ${card.suit}`;
       return `  - ${cardName} → ${expectedFilename}`;
-    })
+    }),
   ].join('\n');
 
   return {
     total: STANDARD_78_CARDS.length,
     found,
     missing,
-    report
+    report,
   };
 }
 
@@ -97,7 +134,7 @@ export function validateImageMappingCoverage(): ValidationResult {
  */
 export function logValidationReport(): ValidationResult {
   const result = validateImageMappingCoverage();
-  
+
   if (import.meta.env.DEV) {
     console.group('📸 图片映射校验');
     console.log(result.report);

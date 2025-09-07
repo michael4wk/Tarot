@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Tarot App - 首页概念图 v2（品牌与真实文案示意）</title>
+  <desc id="desc">顶部导航含品牌位、输入与按钮区含真实文案示意、3x4 卡片网格、错误条与加载骨架示意，采用神秘紫品牌色。</desc>
+
+  <!-- 背景渐变 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0c10"/>
+      <stop offset="100%" stop-color="#15121f"/>
+    </linearGradient>
+    <linearGradient id="brandButton" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8f5bff"/>
+      <stop offset="100%" stop-color="#6c3bff"/>
+    </linearGradient>
+    <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#111216" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#8ab4f8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#111216" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="clip-cards">
+      <rect x="80" y="320" width="200" height="300" rx="10"/>
+      <rect x="304" y="320" width="200" height="300" rx="10"/>
+      <rect x="528" y="320" width="200" height="300" rx="10"/>
+      <rect x="752" y="320" width="200" height="300" rx="10"/>
+      <rect x="80" y="644" width="200" height="300" rx="10"/>
+      <rect x="304" y="644" width="200" height="300" rx="10"/>
+      <rect x="528" y="644" width="200" height="300" rx="10"/>
+      <rect x="752" y="644" width="200" height="300" rx="10"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="800" fill="url(#bgGrad)"/>
+
+  <!-- 顶部导航条 -->
+  <rect x="0" y="0" width="1200" height="64" fill="#0e0d12"/>
+  <!-- 品牌 Logo 占位（圆角方块+文字） -->
+  <rect x="32" y="16" width="32" height="32" rx="6" fill="#7c4dff"/>
+  <text x="72" y="38" fill="#e5e7eb" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="16" font-weight="700">Arcana Studio（占位）</text>
+  <!-- 导航次要按钮占位 -->
+  <rect x="1040" y="18" width="120" height="28" rx="10" fill="#1f2937"/>
+
+  <!-- 页面主标题与副标题（真实文案示意） -->
+  <text x="80" y="110" fill="#e5e7eb" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="28" font-weight="700">今日指引 · 让塔罗为你提供清晰方向</text>
+  <text x="80" y="140" fill="#cbd5e1" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="14">在输入框中描述你的问题或困惑，我们将为你抽取 5 张指引卡牌作为解读的基础</text>
+
+  <!-- 输入与主按钮区域 -->
+  <rect x="80" y="168" width="720" height="50" rx="10" fill="#111216" stroke="#1f2937"/>
+  <text x="96" y="199" fill="#64748b" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="14">例如：我最近的事业方向应该如何选择？</text>
+  <rect x="820" y="168" width="160" height="50" rx="12" fill="url(#brandButton)"/>
+  <text x="860" y="199" fill="#0b0c10" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="14" font-weight="700">开始抽牌</text>
+
+  <!-- 内联错误条（示意，默认隐藏；此处展示） -->
+  <g>
+    <rect x="80" y="232" width="900" height="40" rx="8" fill="#2b2a30" stroke="#8a3d3d"/>
+    <text x="96" y="258" fill="#e5e7eb" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12">网络异常，已切换本地牌组。您可以点击“重试”以获取最新牌面</text>
+    <rect x="436" y="240" width="72" height="24" rx="8" fill="#8f5bff"/>
+    <text x="454" y="258" fill="#0b0c10" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12" font-weight="700">重试</text>
+  </g>
+
+  <!-- 分隔线与标签 -->
+  <rect x="80" y="290" width="1040" height="2" fill="#1f2937"/>
+  <text x="80" y="312" fill="#cbd5e1" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12">卡片网格（3x4）</text>
+
+  <!-- 卡片网格骨架：暗面 + 中央竖向微光（品牌紫） -->
+  <g>
+    <rect x="80" y="320" width="200" height="300" rx="10" fill="#111216"/>
+    <rect x="304" y="320" width="200" height="300" rx="10" fill="#111216"/>
+    <rect x="528" y="320" width="200" height="300" rx="10" fill="#111216"/>
+    <rect x="752" y="320" width="200" height="300" rx="10" fill="#111216"/>
+    <rect x="80" y="644" width="200" height="300" rx="10" fill="#111216"/>
+    <rect x="304" y="644" width="200" height="300" rx="10" fill="#111216"/>
+    <rect x="528" y="644" width="200" height="300" rx="10" fill="#111216"/>
+    <rect x="752" y="644" width="200" height="300" rx="10" fill="#111216"/>
+  </g>
+
+  <!-- 加载 shimmer 覆盖示意 -->
+  <g clip-path="url(#clip-cards)">
+    <rect x="-400" y="320" width="400" height="624" fill="url(#shimmer)">
+      <animateTransform attributeName="transform" type="translate" from="-400 0" to="1200 0" dur="1.6s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- 辅助注释标签 -->
+  <g font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12" fill="#e5e7eb" opacity="0.8">
+    <text x="80" y="86">品牌导航</text>
+    <text x="80" y="156">问题输入与主操作</text>
+    <text x="80" y="284">状态区（错误/提示）</text>
+    <text x="80" y="612">抽牌成功后：此区域展示“5 张候选卡牌池”</text>
+  </g>
+</svg>

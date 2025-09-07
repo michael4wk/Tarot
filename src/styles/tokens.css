@@ -22,8 +22,8 @@
   --radius-md: 10px;
 
   /* 阴影 */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.24);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
 
   /* 动画时序 */
   --duration-fast: 120ms;
@@ -50,5 +50,41 @@
   :root {
     --duration-fast: 0ms;
     --duration-base: 0ms;
+  }
+}
+
+/* 追加：排版与控件（临时 PR-2 量级，便于浏览器内微调） */
+:root {
+  /* 排版（仅三档，后续如需微调，直接改变量值即可全局生效） */
+  --font-size-h1: 28px;
+  --line-height-h1: 36px;
+
+  --font-size-body: 14px;
+  --line-height-body: 22px;
+
+  --font-size-caption: 12px;
+  --line-height-caption: 18px;
+
+  /* 控件统一高度与圆角（按钮/输入） */
+  --control-height-md: 40px;
+  --control-radius: var(--radius-md);
+
+  /* 页面语义化间距（Hero 与主区域）
+     - 使用语义化变量替代魔法数，便于全站统一调参
+     - 约定：mobile 为基础节奏，desktop 在断点处覆盖 */
+  --space-hero-gap-mobile: 12px; /* H1 与副文案/输入区在移动端的基础间距 */
+  --space-hero-gap-desktop-extra: 0px; /* 桌面端在基础间距上的额外加值（默认 0，断点处覆盖） */
+  --space-main-gap: 40px; /* 顶部引导区与卡牌区域之间的竖直间距 */
+
+  /* 首页表单与建议区（语义化间距） */
+  --space-form-row-gap: 12px; /* 输入 + 按钮横向间距 */
+  --space-suggestions-gap: 8px; /* 建议 Chip 之间的间距 */
+  --space-suggestions-offset-top: 4px; /* 建议区与上方输入区的顶边距 */
+}
+
+/* 桌面断点（1024px）：覆盖 Hero H1 的额外间距为 20px（方案 C） */
+@media (min-width: 1024px) {
+  :root {
+    --space-hero-gap-desktop-extra: 20px;
   }
 }

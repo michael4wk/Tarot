@@ -14,8 +14,8 @@ export default defineConfig({
     globals: true,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html']
+      reporter: ['text', 'html'],
     },
-    include: ['src/**/*.spec.{ts,tsx}']
-  }
+    include: ['src/**/*.spec.{ts,tsx}'],
+  },
 });

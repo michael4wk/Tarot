@@ -1,12 +1,7 @@
 <template>
   <!-- 组件：CardGrid（响应式网格） -->
   <div class="card-grid" role="grid" :style="gridStyle">
-    <div
-      v-for="c in props.cards"
-      :key="c.id"
-      class="card-grid__item"
-      role="gridcell"
-    >
+    <div v-for="c in props.cards" :key="c.id" class="card-grid__item" role="gridcell">
       <RevealCard
         :id="c.id"
         v-model:revealed="revealedState[c.id]"
@@ -27,11 +22,24 @@
 // 会将模板中的标识符推断为 {} 并产生“类型 {} 上不存在属性 …”之类的误报。
 // 这里仅对本文件关闭编辑器端的 TS 诊断，以确保“问题”面板清洁不受误报干扰；
 // 项目真实的类型安全仍由命令行中的 vue-tsc/typecheck 保证，运行与构建不受影响。
-import { computed, onMounted, reactive, ref, watch, nextTick, type ComponentPublicInstance } from 'vue';
+import {
+  computed,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  nextTick,
+  type ComponentPublicInstance,
+} from 'vue';
 import RevealCard from '@/components/RevealCard.vue';
 import { isArrowKey, nextIndexByArrow, type ArrowKey } from '@/utils/a11y';
 
-interface SimpleCard { id: string; frontSrc: string; alt?: string; isReversed?: boolean }
+interface SimpleCard {
+  id: string;
+  frontSrc: string;
+  alt?: string;
+  isReversed?: boolean;
+}
 
 interface Props {
   cards: SimpleCard[];
@@ -42,10 +50,10 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  columns: () => ({ sm: 1, md: 2, lg: 4 }),
+  columns: () => ({ sm: 1, md: 2, lg: 5 }),
   gap: 16,
   disabledIds: () => [],
-  revealedMap: () => ({})
+  revealedMap: () => ({}),
 });
 
 const emit = defineEmits<{
@@ -66,7 +74,7 @@ watch(
       revealedState[c.id] = props.revealedMap[c.id] ?? false;
     });
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
@@ -75,7 +83,7 @@ watch(
     for (const [id, v] of Object.entries(map)) {
       revealedState[id] = v as boolean;
     }
-  }
+  },
 );
 
 // 计算当前列数：根据窗口宽度粗略判断（演示环境）
@@ -89,20 +97,28 @@ function computeCols() {
 
 onMounted(() => {
   computeCols();
-  window.addEventListener('resize', () => { computeCols(); });
+  window.addEventListener('resize', () => {
+    computeCols();
+  });
 });
 
 const gridStyle = computed(() => ({
   display: 'grid',
   gridTemplateColumns: `repeat(${cols.value}, minmax(0, 1fr))`,
   gap: `${props.gap}px`,
-  alignItems: 'start'
+  alignItems: 'start',
 }));
 
 // 焦点移动逻辑已在 v1 移除：依据产品规划暂不支持方向键在网格内移动
 </script>
 
 <style scoped>
-.card-grid { width: min(100%, 1100px); margin: 0 auto; }
-.card-grid__item { display: flex; justify-content: center; }
+.card-grid {
+  width: min(100%, 1200px);
+  margin: 0 auto;
+}
+.card-grid__item {
+  display: flex;
+  justify-content: center;
+}
 </style>

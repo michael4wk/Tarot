@@ -1,6 +1,7 @@
 # Tarot API 使用指南
 
 ## 📋 API基本信息
+
 - **官网**：https://tarotapi.dev/
 - **特点**：完全免费，无需注册，无限制调用
 - **数据源**：韦特塔罗牌（Rider-Waite-Smith）78张完整牌组
@@ -9,6 +10,7 @@
 ## 🚀 API端点详解
 
 ### 1. 随机抽牌
+
 ```bash
 # 抽取一张随机牌
 GET https://tarotapi.dev/api/v1/cards/random
@@ -18,6 +20,7 @@ GET https://tarotapi.dev/api/v1/cards/random?n=3
 ```
 
 ### 2. 获取所有牌
+
 ```bash
 # 获取全部78张牌
 GET https://tarotapi.dev/api/v1/cards
@@ -28,6 +31,7 @@ GET https://tarotapi.dev/api/v1/cards
 ```
 
 ### 3. 搜索特定牌
+
 ```bash
 # 根据关键词搜索（搜索name、meaning_up、meaning_rev字段）
 GET https://tarotapi.dev/api/v1/cards/search?q=fool
@@ -40,6 +44,7 @@ GET https://tarotapi.dev/api/v1/cards/search?meaning_rev=conflict
 ```
 
 ### 4. 获取特定牌
+
 ```bash
 # 根据简称获取特定牌
 GET https://tarotapi.dev/api/v1/cards/ar00    # 愚人牌
@@ -49,26 +54,28 @@ GET https://tarotapi.dev/api/v1/cards/cupa    # 圣杯A
 ## 📊 返回数据结构
 
 ### 随机抽牌返回结构
+
 ```json
 {
-  "nhits": 1,                   // 返回的卡牌数量
+  "nhits": 1, // 返回的卡牌数量
   "cards": [
     {
-      "name": "The Fool",       // 完整牌名
-      "name_short": "ar00",     // 简称（ar=大阿卡纳，cu/sw/wa/pe=小阿卡纳）
-      "value": "fool",          // 值标识
-      "value_int": 0,           // 数字值
-      "suit": "major",          // 花色（major/cups/swords/wands/pentacles）
-      "type": "major",          // 类型（major/minor）
-      "meaning_up": "...",      // 正位含义
-      "meaning_rev": "...",     // 逆位含义
-      "desc": "..."             // 牌面详细描述
+      "name": "The Fool", // 完整牌名
+      "name_short": "ar00", // 简称（ar=大阿卡纳，cu/sw/wa/pe=小阿卡纳）
+      "value": "fool", // 值标识
+      "value_int": 0, // 数字值
+      "suit": "major", // 花色（major/cups/swords/wands/pentacles）
+      "type": "major", // 类型（major/minor）
+      "meaning_up": "...", // 正位含义
+      "meaning_rev": "...", // 逆位含义
+      "desc": "..." // 牌面详细描述
     }
   ]
 }
 ```
 
 ### 标准化后的数据结构（推荐）
+
 ```json
 {
   "id": "ar00_0",               // 唯一标识符（简化格式：name_short + 索引）
@@ -94,21 +101,23 @@ GET https://tarotapi.dev/api/v1/cards/cupa    # 圣杯A
 ```
 
 ### 单个卡牌返回结构
+
 ```json
 {
-  "name": "The Fool",           // 完整牌名
-  "name_short": "ar00",         // 简称
-  "value": "fool",              // 值标识
-  "value_int": 0,               // 数字值
-  "suit": "major",              // 花色
-  "type": "major",              // 类型
-  "meaning_up": "...",          // 正位含义
-  "meaning_rev": "...",         // 逆位含义
-  "desc": "..."                 // 牌面详细描述
+  "name": "The Fool", // 完整牌名
+  "name_short": "ar00", // 简称
+  "value": "fool", // 值标识
+  "value_int": 0, // 数字值
+  "suit": "major", // 花色
+  "type": "major", // 类型
+  "meaning_up": "...", // 正位含义
+  "meaning_rev": "...", // 逆位含义
+  "desc": "..." // 牌面详细描述
 }
 ```
 
 ### ⚠️ 重要说明
+
 - **API不提供图片**：需要自行准备卡牌图片资源
 - **推荐图片源**：https://www.sacred-texts.com/tarot/xr/index.htm （公共领域）
 - **数据结构差异**：注意随机抽牌和单个卡牌的返回结构不同
@@ -118,6 +127,7 @@ GET https://tarotapi.dev/api/v1/cards/cupa    # 圣杯A
 ## 🔄 数据标准化流程（v2.0.0）
 
 ### 唯一标识符生成规则
+
 ```javascript
 // 生成唯一标识符的函数（简化版本）
 function generateUniqueId(card, index) {
@@ -127,17 +137,18 @@ function generateUniqueId(card, index) {
 }
 
 // 示例
-const card = { name_short: "ar00", name: "The Fool" };
+const card = { name_short: 'ar00', name: 'The Fool' };
 const uniqueId = generateUniqueId(card, 0); // "ar00_0"
 ```
 
 ### 数据标准化处理类（简化版本）
+
 ```javascript
 class TarotDataStandardizer {
   constructor() {
     // 移除复杂的版本控制，专注核心功能
   }
-  
+
   // 标准化单张卡牌数据
   standardizeCard(rawCard, index) {
     return {
@@ -157,45 +168,49 @@ class TarotDataStandardizer {
       frontSrc: getCardImagePath({
         type: rawCard.type,
         value: rawCard.value,
-        suit: rawCard.suit
+        suit: rawCard.suit,
       }),
       // 兼容旧字段：保持 img/image 与 frontSrc 一致（推荐逐步迁移只用 frontSrc）
       img: getCardImagePath({ type: rawCard.type, value: rawCard.value, suit: rawCard.suit }),
       image: getCardImagePath({ type: rawCard.type, value: rawCard.value, suit: rawCard.suit }),
       keywords: this.extractKeywords(rawCard),
       element: this.getCardElement(rawCard),
-      astrology: this.getCardAstrology(rawCard)
+      astrology: this.getCardAstrology(rawCard),
     };
   }
-  
+
   // 标准化卡牌数组
   standardizeCards(rawCards) {
     return rawCards.map((card, index) => this.standardizeCard(card, index));
   }
-  
+
   // 生成唯一标识符（简化版本）
   generateUniqueId(card, index) {
     const identifier = card.name_short || card.name;
     return `${identifier}_${index}`;
   }
-  
+
   // 基础数据完整性验证（简化版本）
   validateCardData(card) {
     return card.id && card.name && card.meaningUp && card.meaningRev;
   }
-  
+
   // 辅助方法
   extractKeywords(card) {
     return card.meaning_up ? card.meaning_up.split('，').slice(0, 3) : [];
   }
-  
+
   getCardElement(card) {
     const elements = {
-      'cups': '水', 'swords': '风', 'wands': '火', 'pentacles': '土', 'major': '灵'
+      cups: '水',
+      swords: '风',
+      wands: '火',
+      pentacles: '土',
+      major: '灵',
     };
     return elements[card.suit] || '未知';
   }
-  
+
   getCardAstrology(card) {
     // 简化的占星映射
     return card.name_short === 'ar00' ? '天王星' : '';
@@ -206,12 +221,14 @@ class TarotDataStandardizer {
 ## 💻 JavaScript集成示例
 
 > 资源映射导入
+
 ```javascript
 // 在 Vue/Vite 项目中，按如下方式导入图片映射工具：
 import { getCardImagePath, attachFrontSrc } from '@/utils/images';
 ```
 
 ### 基础调用（使用数据标准化）
+
 ```javascript
 // 初始化数据标准化器
 const standardizer = new TarotDataStandardizer();
@@ -225,12 +242,12 @@ async function drawRandomCard() {
     // 标准化原始数据
     const rawCard = result.cards[0];
     const standardizedCard = standardizer.standardizeCard(rawCard, 0);
-    
+
     // 验证数据完整性
     if (!standardizer.validateCardData(standardizedCard)) {
       throw new Error('卡牌数据验证失败');
     }
-    
+
     return standardizedCard;
   } catch (error) {
     console.error('API调用失败:', error);
@@ -243,17 +260,17 @@ async function drawMultipleCards(count = 3) {
   try {
     const response = await fetch(`https://tarotapi.dev/api/v1/cards/random?n=${count}`);
     const result = await response.json();
-    
+
     // 标准化所有卡牌数据
     const standardizedCards = standardizer.standardizeCards(result.cards || []);
-    
+
     // 验证所有卡牌数据
-    const validCards = standardizedCards.filter(card => standardizer.validateCardData(card));
-    
+    const validCards = standardizedCards.filter((card) => standardizer.validateCardData(card));
+
     if (validCards.length !== standardizedCards.length) {
       console.warn(`${standardizedCards.length - validCards.length} 张卡牌数据验证失败`);
     }
-    
+
     return validCards;
   } catch (error) {
     console.error('API调用失败:', error);
@@ -266,11 +283,11 @@ async function getAllCards(type = 'all') {
   try {
     const response = await fetch('https://tarotapi.dev/api/v1/cards');
     const cards = await response.json();
-    
+
     if (type === 'major') {
-      return cards.filter(card => card.type === 'major');
+      return cards.filter((card) => card.type === 'major');
     } else if (type === 'minor') {
-      return cards.filter(card => card.type === 'minor');
+      return cards.filter((card) => card.type === 'minor');
     }
     return cards;
   } catch (error) {
@@ -281,14 +298,15 @@ async function getAllCards(type = 'all') {
 ```
 
 ### Vue.js组件集成
+
 ```javascript
 // TarotCard.vue
 export default {
   data() {
     return {
       currentCard: null,
-      isLoading: false
-    }
+      isLoading: false,
+    };
   },
   methods: {
     async drawCard() {
@@ -301,24 +319,27 @@ export default {
       } finally {
         this.isLoading = false;
       }
-    }
-  }
-}
+    },
+  },
+};
 ```
 
 ## 🎯 项目中的应用场景
 
 ### 1. 单张抽牌
+
 - 日运势查询
 - 简单问题解答
 - 冥想引导
 
 ### 2. 三张牌阵
+
 - 过去-现在-未来
 - 问题-行动-结果
 - 身心灵平衡
 
 ### 3. 复杂牌阵
+
 - 凯尔特十字
 - 关系牌阵
 - 决策牌阵
@@ -326,22 +347,23 @@ export default {
 ## 🔧 错误处理与备选方案
 
 ### 本地备份数据
+
 当API不可用时，可以使用本地备份数据：
 
 ```javascript
 const fallbackCards = [
   {
-    name: "The Fool",
-    name_short: "ar00",
-    value: "fool",
+    name: 'The Fool',
+    name_short: 'ar00',
+    value: 'fool',
     value_int: 0,
-    suit: "major",
-    type: "major",
-    meaning_up: "新的开始，冒险精神，纯真",
-    meaning_rev: "鲁莽，缺乏计划，愚蠢的决定",
-    desc: "愚人代表新的开始和无限的可能性。",
+    suit: 'major',
+    type: 'major',
+    meaning_up: '新的开始，冒险精神，纯真',
+    meaning_rev: '鲁莽，缺乏计划，愚蠢的决定',
+    desc: '愚人代表新的开始和无限的可能性。',
     // 注意：使用图片映射工具生成图片 URL（避免硬编码）
-    frontSrc: getCardImagePath({ type: 'major', suit: 'major', value: 'fool' })
+    frontSrc: getCardImagePath({ type: 'major', suit: 'major', value: 'fool' }),
   },
   // ... 更多卡牌数据（建议包含完整78张牌）
 ];
@@ -350,21 +372,21 @@ const fallbackCards = [
 async function fetchWithTimeout(url, timeout = 5000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
+
   try {
-    const response = await fetch(url, { 
+    const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
     });
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     clearTimeout(timeoutId);
@@ -376,29 +398,27 @@ async function fetchWithTimeout(url, timeout = 5000) {
 async function drawCardWithFallback(count = 1) {
   try {
     // 尝试API调用
-    const result = await fetchWithTimeout(
-      `https://tarotapi.dev/api/v1/cards/random?n=${count}`
-    );
-    
+    const result = await fetchWithTimeout(`https://tarotapi.dev/api/v1/cards/random?n=${count}`);
+
     // 为API返回的卡牌批量生成图片 URL（frontSrc），避免字符串拼接
-    const cardsWithImages = attachFrontSrc(result.cards).map(card => ({
+    const cardsWithImages = attachFrontSrc(result.cards).map((card) => ({
       ...card,
       // 统一使用 frontSrc，若仍需 image_url 可映射为同值
       image_url: card.frontSrc,
       // 添加其他本地增强数据
       keywords: extractKeywords(card),
       element: getCardElement(card),
-      astrology: getCardAstrology(card)
+      astrology: getCardAstrology(card),
     }));
-    
+
     return count === 1 ? cardsWithImages[0] : cardsWithImages;
   } catch (error) {
     console.warn('API不可用，使用本地备份:', error.message);
-    
+
     // 使用本地备份数据
     const shuffled = [...fallbackCards].sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, count);
-    
+
     return count === 1 ? selected[0] : selected;
   }
 }
@@ -406,19 +426,19 @@ async function drawCardWithFallback(count = 1) {
 // 辅助函数
 function extractKeywords(card) {
   // 从含义中提取关键词
-  const upKeywords = card.meaning_up.split('，').map(k => k.trim());
-  const revKeywords = card.meaning_rev.split('，').map(k => k.trim());
+  const upKeywords = card.meaning_up.split('，').map((k) => k.trim());
+  const revKeywords = card.meaning_rev.split('，').map((k) => k.trim());
   return { up: upKeywords, rev: revKeywords };
 }
 
 function getCardElement(card) {
   // 根据花色返回元素
   const elements = {
-    'cups': '水',
-    'swords': '风', 
-    'wands': '火',
-    'pentacles': '土',
-    'major': '灵'
+    cups: '水',
+    swords: '风',
+    wands: '火',
+    pentacles: '土',
+    major: '灵',
   };
   return elements[card.suit] || '未知';
 }
@@ -426,8 +446,8 @@ function getCardElement(card) {
 function getCardAstrology(card) {
   // 返回占星对应（需要完整的映射表）
   const astrologyMap = {
-    'ar00': '天王星',
-    'ar01': '水星',
+    ar00: '天王星',
+    ar01: '水星',
     // ... 更多映射
   };
   return astrologyMap[card.name_short] || '';
@@ -454,7 +474,7 @@ class TarotAPIService {
   async getRandomCards(count) {
     const cards = await drawCardWithFallback(count);
     if (cards && cards.length > 0) {
-      cards.forEach(card => {
+      cards.forEach((card) => {
         if (card.id) {
           this.cardIndexMap.set(card.id, card);
         }
@@ -481,7 +501,7 @@ class TarotAPIService {
 
   // 基础数据验证（简化版本）
   validateCards(cards) {
-    return cards.every(card => this.standardizer.validateCardData(card));
+    return cards.every((card) => this.standardizer.validateCardData(card));
   }
 }
 ```
@@ -489,6 +509,7 @@ class TarotAPIService {
 ## 📈 性能优化建议
 
 ### 1. 缓存策略
+
 ```javascript
 // 缓存所有牌数据，减少API调用
 class TarotCache {
@@ -502,28 +523,27 @@ class TarotCache {
     if (this.isValidCache()) {
       return this.allCards;
     }
-    
+
     const response = await fetch('https://tarotapi.dev/api/v1/cards');
     this.allCards = await response.json();
     this.cacheTime = Date.now();
-    
+
     return this.allCards;
   }
 
   isValidCache() {
-    return this.allCards && 
-           this.cacheTime && 
-           (Date.now() - this.cacheTime) < this.CACHE_DURATION;
+    return this.allCards && this.cacheTime && Date.now() - this.cacheTime < this.CACHE_DURATION;
   }
 }
 ```
 
 ### 2. 本地随机抽牌
+
 ```javascript
 // 获取一次所有牌，本地实现随机抽牌
 async function setupLocalDraw() {
-  const allCards = await fetch('https://tarotapi.dev/api/v1/cards').then(r => r.json());
-  
+  const allCards = await fetch('https://tarotapi.dev/api/v1/cards').then((r) => r.json());
+
   return {
     drawRandom: () => allCards[Math.floor(Math.random() * allCards.length)],
     drawMultiple: (n) => {
@@ -533,7 +553,7 @@ async function setupLocalDraw() {
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
       return shuffled.slice(0, n);
-    }
+    },
   };
 }
 ```
@@ -541,6 +561,7 @@ async function setupLocalDraw() {
 ## ✅ 集成检查清单
 
 ### 基础功能
+
 - [ ] API连接测试通过
 - [ ] 错误处理机制完善
 - [ ] 本地缓存策略实现
@@ -549,6 +570,7 @@ async function setupLocalDraw() {
 - [ ] 用户体验优化
 
 ### 数据标准化（v2.0.0简化版）
+
 - [ ] TarotDataStandardizer类实现完成
 - [ ] 唯一标识符生成机制测试通过
 - [ ] 基础数据完整性验证功能正常
@@ -556,6 +578,7 @@ async function setupLocalDraw() {
 - [ ] 标准化数据结构符合规范
 
 ### 集成测试
+
 - [ ] 单张卡牌抽取和标准化测试
 - [ ] 多张卡牌抽取和标准化测试
 - [ ] 唯一标识符索引查询测试
@@ -567,6 +590,7 @@ async function setupLocalDraw() {
 Tarot API结合我们的数据标准化机制，为塔罗牌应用提供了：
 
 ### 核心优势
+
 - ✅ **完整数据源**：78张韦特塔罗牌完整数据
 - ✅ **详细含义**：正逆位含义和牌面描述
 - ✅ **完全免费**：无需注册，无限制调用
@@ -574,6 +598,7 @@ Tarot API结合我们的数据标准化机制，为塔罗牌应用提供了：
 - ✅ **稳定可靠**：成熟的第三方服务
 
 ### v2.0.0 数据标准化增强（简化版）
+
 - 🆕 **唯一标识符**：每张卡牌具有简洁的唯一标识符（如：ar00_0）
 - 🆕 **数据统一性**：通过索引映射确保卡牌数据统一访问
 - 🆕 **基础验证**：简化的数据完整性检查机制
@@ -581,6 +606,7 @@ Tarot API结合我们的数据标准化机制，为塔罗牌应用提供了：
 - 🆕 **快速查询**：通过唯一标识符快速查找卡牌
 
 ### 技术保障
+
 - 🛡️ **错误处理**：完善的降级和备选机制
 - 🛡️ **性能优化**：本地缓存和简化索引映射
 - 🛡️ **数据验证**：实用的基础数据完整性检查

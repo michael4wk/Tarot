@@ -24,7 +24,12 @@ export function isArrowKey(k: string): k is ArrowKey {
  * - 上/下：按列数跳跃；越界则保持在原位
  * - 左/右：在同一行内移动；越界则保持在原位
  */
-export function nextIndexByArrow(linearIndex: number, columns: number, total: number, key: ArrowKey): number {
+export function nextIndexByArrow(
+  linearIndex: number,
+  columns: number,
+  total: number,
+  key: ArrowKey,
+): number {
   const col = linearIndex % columns;
   let next = linearIndex;
   switch (key) {

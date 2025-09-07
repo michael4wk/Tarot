@@ -8,25 +8,25 @@
 
 export interface WithReversalOptions {
   /** 逆位概率，默认 0.3，有效范围 [0,1] */
-  reversedProbability?: number
+  reversedProbability?: number;
   /** 随机源，默认 Math.random；测试时可注入种子随机函数以复现结果 */
-  random?: () => number
+  random?: () => number;
   /** 当对象已含 isReversed 字段时是否保留（不覆盖），默认 true */
-  preserveExisting?: boolean
+  preserveExisting?: boolean;
 }
 
 /** 默认逆位概率（产品规划：30% 概率逆位） */
-export const DEFAULT_REVERSED_PROB = 0.3
+export const DEFAULT_REVERSED_PROB = 0.3;
 
 /** 将数值钳制到 [min,max] 区间 */
 function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n))
+  return Math.max(min, Math.min(max, n));
 }
 
 /** 断言数值合法 */
 function assertNumber(name: string, value: unknown): asserts value is number {
   if (typeof value !== 'number' || Number.isNaN(value)) {
-    throw new TypeError(`${name} must be a valid number`)
+    throw new TypeError(`${name} must be a valid number`);
   }
 }
 
@@ -36,32 +36,32 @@ function assertNumber(name: string, value: unknown): asserts value is number {
  */
 export function withReversal<T extends Record<string, any>>(
   items: ReadonlyArray<T>,
-  options: WithReversalOptions = {}
+  options: WithReversalOptions = {},
 ): Array<T & { isReversed: boolean }> {
   const {
     reversedProbability = DEFAULT_REVERSED_PROB,
     random = Math.random,
     preserveExisting = true,
-  } = options
+  } = options;
 
-  assertNumber('reversedProbability', reversedProbability)
-  const prob = clamp(reversedProbability, 0, 1)
+  assertNumber('reversedProbability', reversedProbability);
+  const prob = clamp(reversedProbability, 0, 1);
 
   if (import.meta.env.DEV) {
     // 在开发环境中，如果传入概率越界则给出一次性警告（但已做钳制，避免影响行为）
     if (reversedProbability !== prob) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[withReversal] reversedProbability out of range (${reversedProbability}), clamped to ${prob}`
-      )
+        `[withReversal] reversedProbability out of range (${reversedProbability}), clamped to ${prob}`,
+      );
     }
   }
 
   // 纯函数：不修改原数组及其中对象
   return items.map((item) => {
-    const keepExisting = preserveExisting && typeof (item as any).isReversed === 'boolean'
-    const isReversed = keepExisting ? Boolean((item as any).isReversed) : random() < prob
+    const keepExisting = preserveExisting && typeof (item as any).isReversed === 'boolean';
+    const isReversed = keepExisting ? Boolean((item as any).isReversed) : random() < prob;
     // 返回浅拷贝的新对象，附加/保留 isReversed 字段
-    return { ...(item as object), isReversed } as T & { isReversed: boolean }
-  })
+    return { ...(item as object), isReversed } as T & { isReversed: boolean };
+  });
 }

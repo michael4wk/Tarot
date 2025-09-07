@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1440" height="1024" viewBox="0 0 1440 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Tarot App - 首页概念图 v2.1（统一字体系与8pt对齐网格）</title>
+  <desc id="desc">采用品牌神秘紫+深色基调；H1=28/36，Body=14/22，Caption=12/18；8pt网格与列对齐；按钮/输入统一高度；骨架强度一致。</desc>
+
+  <!-- 背景 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0c10"/>
+      <stop offset="100%" stop-color="#15121f"/>
+    </linearGradient>
+    <linearGradient id="buttonGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8f5bff"/>
+      <stop offset="100%" stop-color="#6c3bff"/>
+    </linearGradient>
+    <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#111216" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#8ab4f8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#111216" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1440" height="1024" fill="url(#bg)"/>
+
+  <!-- 8pt网格（可隐藏，辅助对齐） -->
+  <g opacity="0.12">
+    <defs>
+      <pattern id="grid8" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#101116"/>
+        <rect width="1" height="8" fill="#20212a"/>
+        <rect width="8" height="1" fill="#20212a"/>
+      </pattern>
+    </defs>
+    <rect x="0" y="0" width="1440" height="1024" fill="url(#grid8)"/>
+  </g>
+
+  <!-- 顶部导航：高度 64，左右内边距 32，元素对齐基线一致 -->
+  <g>
+    <rect x="0" y="0" width="1440" height="64" fill="#0e0d12"/>
+    <rect x="32" y="16" width="32" height="32" rx="6" fill="#7c4dff"/>
+    <text x="72" y="38" fill="#e5e7eb" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="16" font-weight="700">Arcana Studio（占位）</text>
+    <rect x="1280" y="18" width="128" height="28" rx="10" fill="#1f2937"/>
+  </g>
+
+  <!-- 内容容器：最大宽 1040，居中，左右余白 200 -->
+  <g transform="translate(200,88)">
+    <!-- H1 标题 28/36，统一对齐到列 -->
+    <text x="0" y="0" dy="28" fill="#f3f4f6" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="28" font-weight="800">今日指引 · 让塔罗为你提供清晰方向</text>
+    <!-- Body 14/22 -->
+    <text x="0" y="44" dy="14" fill="#cbd5e1" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="14">在输入框中描述你的问题或困惑，我们将为你抽取 5 张指引卡牌作为解读的基础</text>
+
+    <!-- 表单区：输入 48 高，按钮 48 高，间距统一 16 -->
+    <g transform="translate(0,88)">
+      <rect x="0" y="0" width="720" height="48" rx="10" fill="#111216" stroke="#1f2937"/>
+      <text x="16" y="30" fill="#64748b" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="14">例如：我最近的事业方向应该如何选择？</text>
+      <rect x="744" y="0" width="160" height="48" rx="12" fill="url(#buttonGrad)"/>
+      <text x="784" y="30" fill="#0b0c10" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="14" font-weight="700">开始抽牌</text>
+    </g>
+
+    <!-- 错误条：高度 40，内边距与文字基线对齐 -->
+    <g transform="translate(0,144)">
+      <rect x="0" y="0" width="904" height="40" rx="8" fill="#2b2a30" stroke="#8a3d3d"/>
+      <text x="16" y="26" fill="#e5e7eb" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12">网络异常，已切换本地牌组。您可以点击“重试”以获取最新牌面</text>
+      <rect x="360" y="8" width="72" height="24" rx="8" fill="#8f5bff"/>
+      <text x="378" y="26" fill="#0b0c10" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12" font-weight="700">重试</text>
+    </g>
+
+    <!-- 分隔线与说明 Caption 12/18 -->
+    <g transform="translate(0,200)">
+      <rect x="0" y="0" width="1040" height="2" fill="#1f2937"/>
+      <text x="0" y="24" fill="#94a3b8" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12">卡片网格（3x4）</text>
+    </g>
+
+    <!-- 卡片骨架行列（A 方案），统一强度 -->
+    <g transform="translate(0,248)">
+      <g>
+        <rect x="0" y="0" width="224" height="320" rx="12" fill="#111216"/>
+        <rect x="248" y="0" width="224" height="320" rx="12" fill="#111216"/>
+        <rect x="496" y="0" width="224" height="320" rx="12" fill="#111216"/>
+        <rect x="744" y="0" width="224" height="320" rx="12" fill="#111216"/>
+      </g>
+      <g transform="translate(0,344)">
+        <rect x="0" y="0" width="224" height="320" rx="12" fill="#111216"/>
+        <rect x="248" y="0" width="224" height="320" rx="12" fill="#111216"/>
+        <rect x="496" y="0" width="224" height="320" rx="12" fill="#111216"/>
+        <rect x="744" y="0" width="224" height="320" rx="12" fill="#111216"/>
+      </g>
+
+      <!-- shimmer（统一强度） -->
+      <clipPath id="cards-clip">
+        <rect x="0" y="0" width="224" height="320" rx="12"/>
+        <rect x="248" y="0" width="224" height="320" rx="12"/>
+        <rect x="496" y="0" width="224" height="320" rx="12"/>
+        <rect x="744" y="0" width="224" height="320" rx="12"/>
+        <rect x="0" y="344" width="224" height="320" rx="12"/>
+        <rect x="248" y="344" width="224" height="320" rx="12"/>
+        <rect x="496" y="344" width="224" height="320" rx="12"/>
+        <rect x="744" y="344" width="224" height="320" rx="12"/>
+      </clipPath>
+      <g clip-path="url(#cards-clip)">
+        <rect x="-400" y="0" width="400" height="664" fill="url(#shimmer)">
+          <animateTransform attributeName="transform" type="translate" from="-400 0" to="1200 0" dur="1.6s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+    </g>
+
+    <!-- 说明：抽牌成功后在此显示 5 张候选卡牌池 -->
+    <text x="0" y="936" fill="#94a3b8" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12">抽牌成功后：此区域展示“5 张候选卡牌池”，卡片交互支持键盘可达</text>
+  </g>
+</svg>

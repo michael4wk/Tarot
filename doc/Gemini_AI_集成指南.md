@@ -7,11 +7,13 @@
 ## 🎯 为什么需要 AI 集成？
 
 ### 当前问题
+
 - **固定模板局限性**：预设解读内容机械化，缺乏个性化
 - **用户体验差**：重复的解读内容，无法针对具体问题
 - **缺乏深度**：无法结合用户问题和卡牌进行深度分析
 
 ### AI 解读优势
+
 - **个性化解读**：结合用户具体问题和抽到的卡牌
 - **深度分析**：AI 能够提供更有洞察力的解读
 - **自然语言**：温和、积极且富有启发性的表达
@@ -38,6 +40,7 @@ python verify_gemini_api.py
 ```
 
 **验证结果示例**：
+
 - ✅ API Key 有效
 - 📊 可访问模型：50个（6个免费模型，19个付费模型）
 - 🆓 推荐免费模型：`gemini-1.5-flash`（稳定版本）
@@ -47,11 +50,13 @@ python verify_gemini_api.py
 ### 2. 配置环境变量
 
 1. 在项目根目录创建 `.env` 文件：
+
 ```bash
 cp .env.example .env
 ```
 
 2. 编辑 `.env` 文件，添加您的 API Key：
+
 ```env
 # Gemini API 配置
 VITE_GEMINI_API_KEY=your_actual_api_key_here
@@ -83,6 +88,7 @@ npm run dev
 ### Gemini API 定价（2025年最新）
 
 #### 免费层级（2025年最新）
+
 - **Gemini 1.5 Flash**：免费使用，每日请求限制（RPD）根据层级而定
   - 免费层级：25 RPD（每日请求数）
   - 第1层级（启用计费账户）：100 RPD
@@ -91,12 +97,14 @@ npm run dev
 - **⚠️ 重要提醒**：Gemini 2.5系列模型需要付费使用，但Gemini 1.5 Flash仍可免费使用
 
 #### 付费层级（2025年最新定价）
+
 - **Gemini 2.5 Flash**：输入$0.625/百万tokens，输出$5.00/百万tokens（≤20万tokens提示）
 - **Gemini 2.5 Flash-Lite**：输入$0.30/百万tokens，输出$2.50/百万tokens（推荐性价比）
 - **Gemini 1.5 Flash**：输入$0.075/百万tokens，输出$0.30/百万tokens（经济选择）
 - **预估成本**：每次解读约 $0.001-0.005（根据版本不同）
 
 #### 版本选择建议（基于API Key验证结果）
+
 - **开发测试**：✅ **推荐使用 `gemini-1.5-flash`**（稳定版本，25 RPD限制）
 - **小规模生产**：启用计费账户使用 `gemini-1.5-flash`（100 RPD，仍然免费）
 - **生产环境（经济型）**：推荐 `gemini-2.5-flash-lite`（性价比最高）
@@ -106,6 +114,7 @@ npm run dev
 **⚠️ 重要提醒**：根据API Key验证结果，当前可访问6个免费模型和19个付费模型。建议优先使用 `gemini-1.5-flash` 稳定版本进行开发和测试。
 
 ### 成本优化建议
+
 1. **缓存机制**：相同问题+卡牌组合可以缓存结果
 2. **用户限制**：每用户每日解读次数限制
 3. **回退机制**：API 不可用时使用优化的模板
@@ -138,10 +147,10 @@ class AIReadingService {
   async generateEnhancedReading(cards, question, baseReading) {
     // 验证卡牌数据一致性（使用唯一标识符）
     this.validateCardData(cards);
-    
+
     // 构建专业Prompt模板
     const prompt = this.buildProfessionalPrompt(cards, question, baseReading);
-    
+
     try {
       // 真实API调用（支持2.5版本）
       const response = await this.callGeminiAPI(prompt);
@@ -152,7 +161,7 @@ class AIReadingService {
       return this.createFallbackReading(baseReading);
     }
   }
-  
+
   // 数据一致性验证（使用唯一标识符）
   validateCardData(cards) {
     cards.forEach(card => {
@@ -174,7 +183,7 @@ buildProfessionalPrompt(cards, question, baseReading) {
 
 **用户问题**: ${question}
 
-**抽取卡牌**: ${cards.map(card => 
+**抽取卡牌**: ${cards.map(card =>
     `${card.name}(${card.isReversed ? '逆位' : '正位'}) [ID: ${card.uniqueId}]`
   ).join(', ')}
 
@@ -197,6 +206,7 @@ buildProfessionalPrompt(cards, question, baseReading) {
 ```
 
 **模板特点**：
+
 - 整合五段式基础解读结果
 - 结构化JSON输出格式
 - 专业塔罗师角色定位
@@ -205,6 +215,7 @@ buildProfessionalPrompt(cards, question, baseReading) {
 ## 🎨 用户体验对比
 
 ### 固定模板（当前）
+
 ```
 ❌ 机械化：每次相同卡牌都是相同解读
 ❌ 无关联：无法结合用户具体问题
@@ -213,6 +224,7 @@ buildProfessionalPrompt(cards, question, baseReading) {
 ```
 
 ### AI 解读（升级后）
+
 ```
 ✅ 个性化：每次解读都是独特的
 ✅ 针对性：深度结合用户问题分析
@@ -223,11 +235,13 @@ buildProfessionalPrompt(cards, question, baseReading) {
 ## 🛡️ 安全与隐私
 
 ### 数据保护
+
 - **不存储用户问题**：解读完成后立即清除
 - **API 加密传输**：HTTPS 安全连接
 - **本地处理**：敏感信息不上传到第三方
 
 ### 错误处理
+
 - **API 限额**：优雅降级到优化模板
 - **网络异常**：自动重试机制
 - **解析失败**：回退到备用解读
@@ -235,11 +249,13 @@ buildProfessionalPrompt(cards, question, baseReading) {
 ## 📊 效果预期
 
 ### 用户满意度提升
+
 - **个性化体验**：+80% 用户满意度
 - **解读深度**：+60% 内容质量
 - **重复使用**：+40% 用户留存
 
 ### 技术指标
+
 - **响应时间**：2-5秒（AI 生成）
 - **成功率**：99%（含回退机制）
 - **成本控制**：每月 <$10（中等使用量）
@@ -247,16 +263,19 @@ buildProfessionalPrompt(cards, question, baseReading) {
 ## 🔄 实施计划
 
 ### 阶段一：基础集成（1天）
+
 - [x] 环境变量配置
 - [x] API Key 设置
 - [x] 基础测试
 
 ### 阶段二：优化提升（2-3天）
+
 - [ ] 提示词优化
 - [ ] 错误处理完善
 - [ ] 用户体验测试
 
 ### 阶段三：高级功能（1周）
+
 - [ ] 缓存机制
 - [ ] 用户限制
 - [ ] 分析统计

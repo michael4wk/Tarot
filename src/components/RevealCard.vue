@@ -45,7 +45,7 @@ const props = withDefaults(defineProps<Props>(), {
   frontAlt: '',
   revealed: false,
   disabled: false,
-  reversed: false
+  reversed: false,
 });
 
 const emit = defineEmits<{
@@ -55,14 +55,18 @@ const emit = defineEmits<{
 const innerRevealed = ref<boolean>(props.revealed);
 watch(
   () => props.revealed,
-  (v) => { innerRevealed.value = v; }
+  (v) => {
+    innerRevealed.value = v;
+  },
 );
 
 const frontAltComputed = computed(() => props.frontAlt ?? '');
 const ariaLabel = computed(() => {
   const ori = props.reversed ? '（逆位）' : '';
   return innerRevealed.value
-    ? (props.frontAlt ? `已揭示：${props.frontAlt}${ori}` : `已揭示${ori}`)
+    ? props.frontAlt
+      ? `已揭示：${props.frontAlt}${ori}`
+      : `已揭示${ori}`
     : '未揭示卡片，可按空格或回车键揭示';
 });
 
@@ -84,7 +88,7 @@ const overlayStyle = computed(() => ({
   backgroundImage: `url(${cardBackUrl})`,
   backgroundPosition: 'center',
   backgroundSize: 'cover',
-  backgroundRepeat: 'no-repeat'
+  backgroundRepeat: 'no-repeat',
 }));
 </script>
 
@@ -100,7 +104,10 @@ const overlayStyle = computed(() => ({
   user-select: none;
   outline: none; /* 由 :focus-visible 控制全局焦点样式 */
 }
-.reveal-card.is-disabled { cursor: not-allowed; opacity: 0.6; }
+.reveal-card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 
 .reveal-card__face,
 .reveal-card__overlay {
@@ -121,7 +128,9 @@ const overlayStyle = computed(() => ({
   transition: transform var(--card-reveal-duration) var(--easing-cubic);
 }
 /* 逆位：卡面旋转 180 度（轻量视觉表达，不影响可达性） */
-.reveal-card.is-reversed .reveal-card__img { transform: rotate(180deg); }
+.reveal-card.is-reversed .reveal-card__img {
+  transform: rotate(180deg);
+}
 
 .reveal-card__overlay {
   z-index: var(--z-overlay);

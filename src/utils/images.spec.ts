@@ -35,7 +35,7 @@ const majors: Array<[string, string]> = [
   ['sun', 'sun'],
   ['judgement', 'judgement'],
   ['world', 'world'],
-  ['wheel_of_fortune', 'fortune'] // 异常映射
+  ['wheel_of_fortune', 'fortune'], // 异常映射
 ];
 
 // 小阿卡纳花色与 rank 全覆盖
@@ -54,7 +54,7 @@ const ranksWordToFile = [
   ['page', 'page'],
   ['knight', 'knight'],
   ['queen', 'queen'],
-  ['king', 'king']
+  ['king', 'king'],
 ] as const;
 
 describe('images mapping - filename rule', () => {
@@ -104,7 +104,7 @@ describe('images mapping - url lookup', () => {
       { suit: 'cups', rank: '2' },
       { suit: 'wands', rank: 'ace' },
       { suit: 'swords', rank: '10' },
-      { suit: 'pentacles', rank: 'queen' }
+      { suit: 'pentacles', rank: 'queen' },
     ] as const;
 
     for (const { suit, rank } of subset) {
@@ -145,21 +145,21 @@ describe('images mapping - major normalization compatibility', () => {
     ['twentyone', 'world'], // 英文数字（无下划线）→ 世界
     ['the_chariot', 'chariot'], // the_ 前缀 → 战车
     ['the_high_priestess', 'priestess'], // the_ 前缀 + 异常映射 → 女祭司文件名 priestess
-    ['the_wheel_of_fortune', 'fortune'] // the_ 前缀 + 异常映射 → 命运之轮文件名 fortune
-  ]
+    ['the_wheel_of_fortune', 'fortune'], // the_ 前缀 + 异常映射 → 命运之轮文件名 fortune
+  ];
 
   it('getCardImageFilename normalizes to correct slug', () => {
     for (const [input, slug] of cases) {
-      const fn = getCardImageFilename({ type: 'major', value: input } as any)
-      expect(fn).toBe(`major_arcana_${slug}.png`)
+      const fn = getCardImageFilename({ type: 'major', value: input } as any);
+      expect(fn).toBe(`major_arcana_${slug}.png`);
     }
-  })
+  });
 
   it('getCardImagePath resolves to existing url (not fallback)', () => {
     for (const [input, slug] of cases) {
-      const url = getCardImagePath({ type: 'major', value: input } as any)
-      expect(url).not.toBe(fallbackUrl)
-      expect(url).toContain(`major_arcana_${slug}.png`)
+      const url = getCardImagePath({ type: 'major', value: input } as any);
+      expect(url).not.toBe(fallbackUrl);
+      expect(url).toContain(`major_arcana_${slug}.png`);
     }
-  })
-})
+  });
+});

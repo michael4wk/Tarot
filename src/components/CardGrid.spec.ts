@@ -15,7 +15,11 @@ import { mount } from '@vue/test-utils';
 import CardGrid from '@/components/CardGrid.vue';
 
 function makeCards(n: number) {
-  return Array.from({ length: n }, (_, i) => ({ id: String(i + 1), frontSrc: '', alt: `Card ${i + 1}` }));
+  return Array.from({ length: n }, (_, i) => ({
+    id: String(i + 1),
+    frontSrc: '',
+    alt: `Card ${i + 1}`,
+  }));
 }
 
 function getGrid(wrapper: ReturnType<typeof mount>) {
@@ -67,12 +71,14 @@ describe('CardGrid', () => {
     const wrapper = mount(CardGrid, { props: { cards: makeCards(3) }, attachTo: document.body });
 
     await wrapper.vm.$nextTick();
-    const buttons = wrapper.findAll('.card-grid__item').map(it => it.find('[role="button"]'));
+    const buttons = wrapper.findAll('.card-grid__item').map((it) => it.find('[role="button"]'));
     const firstButton = buttons[0];
     const secondButton = buttons[1];
     (firstButton.element as HTMLElement).focus?.();
 
-    const activeGetter = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(firstButton.element as Element);
+    const activeGetter = vi
+      .spyOn(document, 'activeElement', 'get')
+      .mockReturnValue(firstButton.element as Element);
     const focusSpy = vi.spyOn(secondButton.element as HTMLElement, 'focus');
 
     await getGrid(wrapper).trigger('keydown', { key: 'ArrowRight' });
@@ -88,7 +94,7 @@ describe('CardGrid', () => {
   it('与子组件联动：更新每张卡的 revealed，并向外 emit update:revealed-map', async () => {
     const cards = makeCards(2);
     const wrapper = mount(CardGrid, {
-      props: { cards, revealedMap: { '1': false, '2': false } }
+      props: { cards, revealedMap: { '1': false, '2': false } },
     });
 
     // 点击第一张卡片：使用角色选择器找到内部按钮
@@ -102,7 +108,7 @@ describe('CardGrid', () => {
   it('禁用卡片：点击不触发 reveal', async () => {
     const cards = makeCards(1);
     const wrapper = mount(CardGrid, {
-      props: { cards, disabledIds: ['1'] }
+      props: { cards, disabledIds: ['1'] },
     });
 
     const btn = wrapper.find('[role="button"]');

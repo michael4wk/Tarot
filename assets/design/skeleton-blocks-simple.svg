@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Skeleton 风格方案 B：简洁骨架块（Blocks Skeleton）
+  - 设计目标：实现成本低、通用性好，不强绑定卡片布局；适合列表/段落等场景复用
+  - 主题映射：同方案 A；色彩对比更低，避免与实际内容竞争
+-->
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Skeleton B - 简洁骨架块</title>
+  <desc id="desc">深色背景上，若干条矩形骨架条组成的标题、段落、缩略图与按钮占位，配有柔和高光动画。</desc>
+
+  <!-- 背景 -->
+  <rect width="1200" height="800" fill="#0b0c10"/>
+
+  <!-- 标题与副标题占位 -->
+  <rect x="80" y="60" width="420" height="24" rx="6" fill="#111216"/>
+  <rect x="80" y="96" width="280" height="18" rx="6" fill="#111216" opacity="0.85"/>
+
+  <!-- 内容骨架：左文右图 -->
+  <!-- 左侧段落 -->
+  <g>
+    <rect x="80" y="150" width="520" height="14" rx="6" fill="#111216"/>
+    <rect x="80" y="174" width="480" height="14" rx="6" fill="#111216" opacity="0.9"/>
+    <rect x="80" y="198" width="500" height="14" rx="6" fill="#111216" opacity="0.8"/>
+    <rect x="80" y="222" width="440" height="14" rx="6" fill="#111216" opacity="0.7"/>
+  </g>
+  <!-- 右侧缩略图占位 -->
+  <rect x="640" y="150" width="320" height="200" rx="10" fill="#111216"/>
+
+  <!-- 分组一（按钮与输入） -->
+  <rect x="80" y="280" width="200" height="44" rx="10" fill="#111216"/>
+  <rect x="296" y="280" width="160" height="44" rx="10" fill="#111216" opacity="0.9"/>
+
+  <!-- 分组二（列表项） -->
+  <g>
+    <rect x="80" y="360" width="860" height="14" rx="6" fill="#111216"/>
+    <rect x="80" y="384" width="820" height="14" rx="6" fill="#111216" opacity="0.9"/>
+    <rect x="80" y="408" width="840" height="14" rx="6" fill="#111216" opacity="0.8"/>
+    <rect x="80" y="432" width="780" height="14" rx="6" fill="#111216" opacity="0.7"/>
+  </g>
+
+  <!-- 高光渐变与裁剪复用 -->
+  <defs>
+    <linearGradient id="shimmer2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#111216" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#8ab4f8" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#111216" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="clip-blocks">
+      <rect x="80" y="60" width="420" height="24" rx="6"/>
+      <rect x="80" y="96" width="280" height="18" rx="6"/>
+      <rect x="80" y="150" width="520" height="14" rx="6"/>
+      <rect x="80" y="174" width="480" height="14" rx="6"/>
+      <rect x="80" y="198" width="500" height="14" rx="6"/>
+      <rect x="80" y="222" width="440" height="14" rx="6"/>
+      <rect x="640" y="150" width="320" height="200" rx="10"/>
+      <rect x="80" y="280" width="200" height="44" rx="10"/>
+      <rect x="296" y="280" width="160" height="44" rx="10"/>
+      <rect x="80" y="360" width="860" height="14" rx="6"/>
+      <rect x="80" y="384" width="820" height="14" rx="6"/>
+      <rect x="80" y="408" width="840" height="14" rx="6"/>
+      <rect x="80" y="432" width="780" height="14" rx="6"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#clip-blocks)">
+    <rect id="shine2" x="-400" y="0" width="400" height="800" fill="url(#shimmer2)">
+      <animateTransform attributeName="transform" type="translate" from="-400 0" to="1200 0" dur="1.6s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- 说明标签 -->
+  <text x="80" y="520" fill="#e5e7eb" font-family="system-ui, -apple-system, Segoe UI, Roboto" font-size="12" opacity="0.7">Skeleton B：简洁骨架块（标题/段落/缩略图/按钮占位，可复用于表单与列表场景）</text>
+</svg>

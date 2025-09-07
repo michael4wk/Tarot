@@ -30,7 +30,7 @@ describe('RevealCard', () => {
     const wrapper = mount(RevealCard, {
       // frontSrc 留空，使用插槽渲染以避免加载图片
       props: { id: 'a1', frontSrc: '', frontAlt: '太阳' },
-      slots: { default: '<div>Card A</div>' }
+      slots: { default: '<div>Card A</div>' },
     });
 
     const root = findRoot(wrapper);
@@ -52,7 +52,7 @@ describe('RevealCard', () => {
   it('键盘 Enter/Space 可切换 revealed', async () => {
     const wrapper = mount(RevealCard, {
       props: { id: 'k1', frontSrc: '', frontAlt: '星星' },
-      slots: { default: '<div>Card K</div>' }
+      slots: { default: '<div>Card K</div>' },
     });
 
     const root = findRoot(wrapper);
@@ -68,7 +68,7 @@ describe('RevealCard', () => {
   it('禁用态：不响应点击与键盘，且包含 is-disabled 类', async () => {
     const wrapper = mount(RevealCard, {
       props: { id: 'd1', disabled: true, frontSrc: '' },
-      slots: { default: '<div>Disabled</div>' }
+      slots: { default: '<div>Disabled</div>' },
     });
     const root = findRoot(wrapper);
 
@@ -83,13 +83,13 @@ describe('RevealCard', () => {
 
   it('frontSrc 存在时渲染 img；为空时渲染插槽', () => {
     const withImg = mount(RevealCard, {
-      props: { id: 'img1', frontSrc: '/x.png', frontAlt: '牌面' }
+      props: { id: 'img1', frontSrc: '/x.png', frontAlt: '牌面' },
     });
     expect(withImg.find('img.reveal-card__img').exists()).toBe(true);
 
     const withSlot = mount(RevealCard, {
       props: { id: 'slot1', frontSrc: '' },
-      slots: { default: '<div class="slot-content">X</div>' }
+      slots: { default: '<div class="slot-content">X</div>' },
     });
     expect(withSlot.find('img.reveal-card__img').exists()).toBe(false);
     expect(withSlot.find('.slot-content').exists()).toBe(true);
@@ -98,7 +98,7 @@ describe('RevealCard', () => {
   it('可访问性：aria-label 与 alt 逻辑', async () => {
     const wrapper = mount(RevealCard, {
       props: { id: 'a11', frontSrc: '', frontAlt: '世界' },
-      slots: { default: '<div>Card</div>' }
+      slots: { default: '<div>Card</div>' },
     });
     const root = findRoot(wrapper);
     // 未揭示
@@ -113,7 +113,7 @@ describe('RevealCard', () => {
   it('覆盖层样式：揭示后 opacity 为 0', async () => {
     const wrapper = mount(RevealCard, {
       props: { id: 's1', frontSrc: '' },
-      slots: { default: '<div>Card</div>' }
+      slots: { default: '<div>Card</div>' },
     });
 
     await findRoot(wrapper).trigger('click');
