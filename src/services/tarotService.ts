@@ -383,77 +383,263 @@ export interface InterpretResult {
 }
 
 /**
- * 本地 Mock 结果生成器：
- * - 结合卡牌名称、正/逆位与问题语境，生成可信的占位文案
- * - 保证字段完整，便于 UI 三态验收
+ * 轻量 POST + JSON + 重试封装（仅用于 AI 接入）
+ * - 复用 classifyError 的分类与指数退避策略，避免影响现有 fetchJsonWithRetry 签名
  */
-function buildMockInterpretation(input: InterpretInput, cardName?: string): InterpretResult {
-  const title = cardName || '你所抽到的牌';
-  const ori = input.reversed ? '（逆位）' : '（正位）';
-  const q = input.question.trim();
+async function postJsonWithRetry(
+  url: string,
+  body: any,
+  {
+    timeoutMs = 8000,
+    retries = 1,
+    baseDelayMs = 300,
+    headers = {},
+  }: { timeoutMs?: number; retries?: number; baseDelayMs?: number; headers?: Record<string, string> } = {},
+): Promise<any> {
+  let attempt = 0;
+  const maxAttempts = retries + 1;
+  while (attempt < maxAttempts) {
+    try {
+      return await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+        timeout: timeoutMs,
+      } as any);
+    } catch (e) {
+      attempt += 1;
+      const info = classifyError(e);
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn('[tarotService] AI 请求失败', { attempt, info });
+      }
+      if (!info.retriable || attempt >= maxAttempts) throw e;
+      const jitter = 0.2 + Math.random() * 0.4;
+      const base = baseDelayMs * Math.pow(2, attempt - 1);
+      const wait = Math.min(1500, Math.floor(base * jitter));
+      await delay(wait);
+    }
+  }
+  throw new Error('Unreachable AI retry loop');
+}
 
-  // 核心解读：三段结构，兼顾神秘感与可执行的方向感
-  const coreParts: string[] = [
-    `${title}${ori}揭示当下情势的核心关键词是“专注 · 取舍”。`,
-    q
-      ? `围绕“${q}”，这张牌提示你先对真正重要的事建立次序，再在合适的节点推进。`
-      : '这张牌提示你先对真正重要的事建立次序，再在合适的节点推进。',
-    input.reversed
-      ? '逆位能量提醒：外界噪音与自我质疑可能被放大，先稳住节奏，避免因短期波动改变长期策略。'
-      : '正位能量鼓励：资源与环境正向对你敞开，坚持聚焦与耐心，进展会逐步变得清晰可见。',
-  ];
-  const core = coreParts.join('\n');
+/**
+ * 规范化/裁剪 AI 返回，保障 UI 消费安全
+ */
+function normalizeInterpretResult(
+  cardId: string,
+  reversed: boolean,
+  payload: any,
+): InterpretResult {
+  // 可能包含 Markdown 包裹或多余前后缀的 JSON 文本，先尽力清洗
+  if (typeof payload === 'string') {
+    const text = payload.trim();
+    const fenced = /```(?:json)?([\s\S]*?)```/m.exec(text);
+    const raw = fenced ? fenced[1] : text;
+    const objText = (() => {
+      // 尝试截取第一个 { 到最后一个 } 之间的内容
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start >= 0 && end > start) return raw.slice(start, end + 1);
+      return raw;
+    })();
+    try {
+      payload = JSON.parse(objText);
+    } catch {
+      // JSON 解析失败，抛出让上层回退 mock
+      throw new Error('AI 响应解析失败');
+    }
+  }
 
-  // 行动建议：3-5 条，含可执行与校验维度
-  const actionsBase = [
-    '把目标拆成 3 个可执行小步，并在本周逐一完成。',
-    '与一位可信的人交流观点，补全信息与盲区。',
-    input.reversed
-      ? '重大决策前先等待 24-48 小时，做一次信息复核。'
-      : '为最关键的一步设定量化验收标准（如 DRI/截止时间/成功判据）。',
-    '为可能的阻塞列出 1-2 个备选路径，提前准备切换条件。',
-    '用一次简短的复盘（10-15 分钟）记录今天的进展与卡点。',
-  ];
-  // 取前 3-5 条，避免过长
-  const actions = actionsBase.slice(0, 4 + (input.reversed ? 0 : 1));
+  const core = String(payload?.core || '').trim();
+  const actionsArr = Array.isArray(payload?.actions) ? payload.actions : [];
+  const warningsArr = Array.isArray(payload?.warnings) ? payload.warnings : [];
 
-  // 理性提醒：三条固定维度（边界与责任 / 认知盲点 / 时间窗与复盘）
-  const warnings = [
-    input.reversed
-      ? '边界与责任：把“不可控因素”剥离出你的责任范围，避免为所有结果背锅。'
-      : '边界与责任：明确你能直接影响的范围，把精力投入到可控变量上。',
-    '认知盲点：关注信息源的一致性与样本代表性，避免以偏概全。',
-    input.reversed
-      ? '时间窗与复盘：给自己一个 1-2 周的观察窗，按周节奏复盘并调整策略。'
-      : '时间窗与复盘：以 1 周为最小步长进行节奏检查，建立“目标-行动-反馈”的闭环。',
-  ];
+  const actions = actionsArr
+    .map((v: unknown) => String((v as any) || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const warnings = warningsArr
+    .map((v: unknown) => String((v as any) || '').trim())
+    .filter(Boolean)
+    .slice(0, 5);
 
-  return {
-    cardId: input.cardId,
-    reversed: !!input.reversed,
-    core,
-    actions,
-    warnings,
+  if (!core || actions.length === 0) {
+    throw new Error('AI 响应字段不完整');
+  }
+
+  return { cardId, reversed, core, actions, warnings: warnings.length ? warnings : undefined };
+}
+
+/**
+ * 组装 Prompt v1.2（在 v1.1 基础上增加“字数与结构边界”）
+ * - 输出要求：仅返回 JSON 对象，形如 { core, actions, warnings }
+ * - 字数要求：
+ *   - core（塔罗洞察）：300-350 字以内；强调关键矛盾与可落地方向，避免空话与重复
+ *   - actions（行动建议）：2-3 条，总字数 150-200 字以内；每条约 50-65 字；若超过 3 条请仅保留最重要的 2-3 条，并压缩以满足总字数。需包含可执行动作与可验证要素（时间窗/度量/前置条件）。
+ *   - warnings（现实考量）：固定 3 条，分别对应「边界与责任 / 认知盲点 / 时间窗与复盘」，每条 20-40 字
+ */
+function buildPromptV12(params: {
+  question: string;
+  card: StandardCard | null;
+  reversed: boolean;
+}): string {
+  const { question, card, reversed } = params;
+  const zhName = card?.name || '所抽到的牌';
+
+  // 牌面证据锚点：类型/花色/数值/正逆位（与 v1.1 保持一致，避免引导冗长输出）
+  const evidence: string[] = [];
+  if (card?.type) evidence.push(card.type === 'major' ? '大阿尔卡那' : '小阿尔卡那');
+  if (card?.suit) evidence.push(`花色:${card.suit}`);
+  if (card?.value) evidence.push(`牌值:${card.value}`);
+  evidence.push(reversed ? '状态:逆位' : '状态:正位');
+  const evidenceLine = evidence.join(' / ');
+
+  return [
+    '你是一名严谨的塔罗解读师。仅基于“牌面证据与用户问题”给出专业、具体、可执行的中文解读。',
+    '输出结构固定为 JSON 对象：{"core": string, "actions": string[], "warnings": string[]}',
+    '禁止输出多余文字、提示语、说明、Markdown 代码块或前后缀。',
+    '',
+    '字数边界：',
+    '1) core（塔罗洞察）：请控制在 300-350 字以内；紧扣当下情势、关键矛盾与可落地方向，避免空话与重复。',
+    '2) actions（行动建议）：2-3 条，总字数 150-200 字以内；每条约 50-65 字，需包含可执行动作与可验证要素（时间窗/度量/前置条件）。',
+    '3) warnings（现实考量）：固定 3 条，主题依次为「边界与责任」「认知盲点」「时间窗与复盘」，每条 20-40 字，避免危言耸听。',
+    '',
+    '风格与约束：紧扣牌面证据与用户问题；不凭空扩展；克制、务实，避免夸张或迷信表达。',
+    '',
+    `牌面证据: ${evidenceLine}`,
+    `牌名: ${zhName}`,
+    `用户问题: ${question}`,
+    '',
+    '请只返回 JSON 对象。',
+  ].join('\n');
+}
+
+/**
+ * 调用 Gemini API（v1beta generateContent）
+ * - 默认模型可由 VITE_GEMINI_MODEL 指定（如 gemini-1.5-pro），否则给出安全默认
+ * - 成功时返回规范化后的 InterpretResult；失败时由上层回退到 mock
+ */
+async function tryGeminiInterpret(
+  input: InterpretInput,
+): Promise<InterpretResult> {
+  const apiKey = String((import.meta as any).env?.VITE_GEMINI_API_KEY || '').trim();
+  const enabled = String((import.meta as any).env?.VITE_ENABLE_AI_READING || 'false') === 'true';
+  if (!enabled || !apiKey) throw new Error('AI 未启用或缺少密钥');
+
+  // 读取选中卡片元信息，便于构建“牌面证据锚点”
+  let card: StandardCard | null = null;
+  try {
+    const all = await getAllStandardizedCardsCached({ forceRefresh: false });
+    card = all.find((c) => c.id === input.cardId) ?? null;
+  } catch {
+    card = null; // 不阻断，缺卡时依然继续
+  }
+
+  const model = String((import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-1.5-pro').trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model,
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const prompt = buildPromptV12({ question: input.question, card, reversed: !!input.reversed });
+
+  // 从环境变量读取可调参数，提供健壮的回退默认值
+  const aiMaxTokens = (() => {
+    const v = Number((import.meta as any).env?.VITE_AI_MAX_TOKENS);
+    return Number.isFinite(v) && v > 0 ? Math.floor(v) : 896;
+  })();
+  const aiTimeoutMs = (() => {
+    const v = Number((import.meta as any).env?.VITE_AI_TIMEOUT_MS);
+    return Number.isFinite(v) && v > 0 ? Math.floor(v) : 15000;
+  })();
+  const aiRetries = (() => {
+    const v = Number((import.meta as any).env?.VITE_AI_RETRIES);
+    return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 2;
+  })();
+
+  // 参照官方接口结构，保持最简；安全起见温度适中
+  const body = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.65,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: aiMaxTokens,
+      // 严格 JSON 输出（不再返回 Markdown 或纯文本）
+      responseMimeType: 'application/json',
+    },
   };
+
+  const res = await postJsonWithRetry(url, body, {
+    timeoutMs: aiTimeoutMs,
+    retries: aiRetries,
+    baseDelayMs: 300,
+    headers: { Accept: 'application/json' },
+  });
+
+  // 解析 Gemini 响应
+  const text: string | undefined = res?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text || typeof text !== 'string') throw new Error('AI 无候选内容');
+
+  // 开发环境下输出成功信号：用于 QA 阶段快速判定“AI 成功采用”
+  // 注意：不打印任何敏感数据（API Key/Prompt/完整回复内容），仅输出来源与关键标识
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.info('[tarotService] AI 成功采用 Gemini 结果', {
+      model,
+      cardId: input.cardId,
+      reversed: !!input.reversed,
+    });
+  }
+
+  return normalizeInterpretResult(input.cardId, !!input.reversed, text);
 }
 
 /**
  * interpretQuestion：根据“问题 + 牌势”返回解读结果
  * - 默认启用 Mock（当未配置 VITE_USE_MOCK 时也视为 true），用于 UI/流程联调
- * - 后续可切换为真实 API（保留参数位与错误处理骨架）
+ * - 若设置 VITE_ENABLE_AI_READING=true 且提供 VITE_GEMINI_API_KEY，则优先尝试 AI，失败即回退 Mock
  *
  * 环境变量（可选）：
- * - VITE_USE_MOCK: 'true' | 'false'，默认 'true'
- * - VITE_MOCK_DELAY_MIN/VITE_MOCK_DELAY_MAX: 模拟耗时（毫秒），默认 300-900ms
- * - VITE_MOCK_FAIL_RATE: 失败注入比例（0~1），默认 0（不失败）
+ * - VITE_ENABLE_AI_READING: 'true' | 'false'，默认 'false'
+ * - VITE_GEMINI_API_KEY: string，未配置则不会走 AI
+ * - VITE_GEMINI_MODEL: string，默认 'gemini-1.5-pro'
+ * - VITE_USE_MOCK: 'true' | 'false'，默认 'true'（当 AI 关闭时生效）
+ * - VITE_MOCK_DELAY_MIN/VITE_MOCK_DELAY_MAX/VITE_MOCK_FAIL_RATE：同原逻辑
+ * - VITE_AI_MAX_TOKENS: number，默认 896（用于 generationConfig.maxOutputTokens）
+ * - VITE_AI_TIMEOUT_MS: number，默认 15000（用于 AI 请求超时）
+ * - VITE_AI_RETRIES: number，默认 2（用于 AI 请求重试次数）
  */
 export async function interpretQuestion(
   input: InterpretInput,
   opts: { timeoutMs?: number; retries?: number; baseDelayMs?: number } = {},
 ): Promise<InterpretResult> {
+  const enableAI = String((import.meta as any).env?.VITE_ENABLE_AI_READING ?? 'false') === 'true';
+
+  // 优先走 AI（当开关打开且配置完整时）
+  if (enableAI) {
+    try {
+      // reversed 明确化，避免后续分支重复转换
+      const reversed = !!input.reversed;
+      const ai = await tryGeminiInterpret({ ...input, reversed });
+      return ai;
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn('[tarotService] AI 失败，回退到 Mock。', e);
+      }
+      // 故意继续走 Mock 分支
+    }
+  }
+
+  // ====== Mock 路径（原有逻辑，保持向后兼容）======
   const useMock = String((import.meta as any).env?.VITE_USE_MOCK ?? 'true') === 'true';
 
-  // 优先走 Mock：用于 UI 验收与联调
   if (useMock) {
     const min = Number((import.meta as any).env?.VITE_MOCK_DELAY_MIN ?? 300);
     const max = Number((import.meta as any).env?.VITE_MOCK_DELAY_MAX ?? 900);
@@ -491,4 +677,59 @@ export async function interpretQuestion(
 
   // 生产环境下提示未接入
   throw new Error('解读服务暂未接入，请稍后再试');
+}
+
+/**
+ * 本地 Mock 结果生成器：
+ * - 结合卡牌名称、正/逆位与问题语境，生成可信的占位文案
+ * - 保证字段完整，便于 UI 三态验收
+ */
+function buildMockInterpretation(input: InterpretInput, cardName?: string): InterpretResult {
+  const title = cardName || '你所抽到的牌';
+  const ori = input.reversed ? '（逆位）' : '（正位）';
+  const q = input.question.trim();
+
+  // 核心解读：三段结构，兼顾专业度与可执行方向
+  const coreParts: string[] = [
+    `${title}${ori}揭示当下情势的核心关键词是“专注 · 取舍”。`,
+    q
+      ? `围绕“${q}”，这张牌提示你先对真正重要的事建立次序，再在合适的节点推进。`
+      : '这张牌提示你先对真正重要的事建立次序，再在合适的节点推进。',
+    input.reversed
+      ? '逆位能量提醒：外界噪音与自我质疑可能被放大，先稳住节奏，避免因短期波动改变长期策略。'
+      : '正位能量鼓励：资源与环境正向对你敞开，坚持聚焦与耐心，进展会逐步变得清晰可见。',
+  ];
+  const core = coreParts.join('\n');
+
+  // 行动建议：3-5 条，含可执行与校验维度
+  const actionsBase = [
+    '把目标拆成 3 个可执行小步，并在本周逐一完成。',
+    '与一位可信的人交流观点，补全信息与盲区。',
+    input.reversed
+      ? '重大决策前先等待 24-48 小时，做一次信息复核。'
+      : '为最关键的一步设定量化验收标准（如 DRI/截止时间/成功判据）。',
+    '为可能的阻塞列出 1-2 个备选路径，提前准备切换条件。',
+    '用一次简短的复盘（10-15 分钟）记录今天的进展与卡点。',
+  ];
+  // 取前 3-5 条，避免过长
+  const actions = actionsBase.slice(0, 4 + (input.reversed ? 0 : 1));
+
+  // 现实考量：三条固定维度（边界与责任 / 认知盲点 / 时间窗与复盘）
+  const warnings = [
+    input.reversed
+      ? '边界与责任：把“不可控因素”剥离出你的责任范围，避免为所有结果背锅。'
+      : '边界与责任：明确你能直接影响的范围，把精力投入到可控变量上。',
+    '认知盲点：关注信息源的一致性与样本代表性，避免以偏概全。',
+    input.reversed
+      ? '时间窗与复盘：给自己一个 1-2 周的观察窗，按周节奏复盘并调整策略。'
+      : '时间窗与复盘：以 1 周为最小步长进行节奏检查，建立“目标-行动-反馈”的闭环。',
+  ];
+
+  return {
+    cardId: input.cardId,
+    reversed: !!input.reversed,
+    core,
+    actions,
+    warnings,
+  };
 }

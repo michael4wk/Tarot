@@ -109,7 +109,7 @@
             </ul>
           </div>
           <div v-if="result?.warnings?.length" class="card">
-            <h2 class="card__title">理性提醒</h2>
+            <h2 class="card__title">现实考量</h2>
             <ul class="card__list">
               <li v-for="(w, i) in result?.warnings" :key="i">{{ w }}</li>
             </ul>
@@ -421,13 +421,26 @@ onMounted(() => {
 }
 .card__body {
   margin: 0;
-  white-space: pre-wrap;
+  /* 调整为 pre-line：保留换行符，折叠多余空格，更适合段落排版与两端对齐 */
+  white-space: pre-line;
   line-height: 1.8;
+  /* 显式默认左对齐：移动端与除“塔罗洞察”外的区域保持左对齐，提升可读性 */
+  text-align: left;
 }
 .card__list {
   margin: 0;
   padding-left: 18px;
   line-height: 1.8;
+}
+
+/* 桌面端（≥900px）：仅对“塔罗洞察”的正文启用两端对齐，最后一行保持自然左对齐
+   - 避免窄屏两端对齐产生的字间距拉大问题
+   - 列表（行动建议/现实考量）保持左对齐不变 */
+@media (min-width: 900px) {
+  .interpret-card .card__body {
+    text-align: justify;
+    text-align-last: left;
+  }
 }
 
 /* 免责声明与 CTA */

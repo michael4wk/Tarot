@@ -46,6 +46,10 @@ describe('CardGrid', () => {
   it('样式：列数与间距随宽度变化', async () => {
     const wrapper = mount(CardGrid, { props: { cards: makeCards(4), gap: 24 } });
 
+    // 说明：CardGrid 默认 columns 为 { sm:1, md:2, lg:4 }。
+    // 首页（抽牌页）如需 5 列，会通过 :columns="{ sm:2, md:3, lg:5 }" 显式传参，
+    // 因此此处测试默认行为时，lg 断点应为 4 列。
+
     // lg
     let style = getGrid(wrapper).attributes('style') || '';
     expect(style).toContain('grid-template-columns: repeat(4');

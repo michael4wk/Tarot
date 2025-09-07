@@ -50,7 +50,12 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  columns: () => ({ sm: 1, md: 2, lg: 5 }),
+  // 默认列数策略：
+  // - sm（<480px）：1 列，保证小屏可读性
+  // - md（>=480px && <900px）：2 列，兼顾密度与可读性
+  // - lg（>=900px）：4 列，作为通用默认值（更稳健的卡片最小宽度与布局节奏）
+  //   注：如需 5 列布局，请在使用处显式传入 { lg: 5 }，例如抽牌页。
+  columns: () => ({ sm: 1, md: 2, lg: 4 }),
   gap: 16,
   disabledIds: () => [],
   revealedMap: () => ({}),
