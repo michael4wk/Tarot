@@ -87,7 +87,10 @@ export function toZhRank(value: string | null | undefined): string {
  */
 export function toZhMajor(value: string | null | undefined): string {
   if (!value) return '';
-  return MAJOR_ZH[value] || value;
+  // 将大阿尔卡那的 value 归一化为标准 slug（支持数字/罗马数字/英文数字/the_ 前缀），
+  // 以便与中文专业译名表 MAJOR_ZH 对齐。
+  const canonical = normalizeMajorValueToSlug(String(value));
+  return MAJOR_ZH[canonical] || canonical;
 }
 
 /**
@@ -105,3 +108,5 @@ export function suitElementZh(suit: string | null | undefined): string {
 export function majorElementZh(_value: string | null | undefined): string {
   return '—';
 }
+
+import { normalizeMajorValueToSlug } from '@/utils/images';

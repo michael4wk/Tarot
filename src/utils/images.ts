@@ -131,7 +131,7 @@ const WORDNUM_TO_NUM: Record<string, number> = {
  * - 兼容可选的 "the_" 前缀（例如 "the_chariot" → "chariot"）
  * - 若本身已是我们维护的 slug 或异常映射键，则直接返回
  */
-function normalizeMajorValueToSlug(raw: string): string {
+export function normalizeMajorValueToSlug(raw: string): string {
   let s = (raw || '')
     .trim()
     .toLowerCase()
@@ -194,7 +194,7 @@ function normalizeType(t: ArcanaType): 'major' | 'minor' {
 
 /**
  * 根据卡牌信息计算对应的图片基础文件名（不含路径）。
- * 该方法与实际 URL 生成解耦，便于单测直接断言文件名是否如预期。
+ * 该方法与实际 URL 生成解耦合，便于单测直接断言文件名是否如预期。
  */
 export function getCardImageFilename(card: TarotCardLite): string {
   const type = normalizeType(card.type);
