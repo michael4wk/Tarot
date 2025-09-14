@@ -592,6 +592,7 @@ function buildPromptV12(params: {
  */
 async function tryGeminiInterpret(
   input: InterpretInput,
+  opts: { signal?: AbortSignal } = {},
 ): Promise<InterpretResult> {
   const apiKey = String((import.meta as any).env?.VITE_GEMINI_API_KEY || '').trim();
   const enabled = String((import.meta as any).env?.VITE_ENABLE_AI_READING || 'false') === 'true';
@@ -640,7 +641,7 @@ async function tryGeminiInterpret(
   const headers: Record<string, string> = { Accept: 'application/json' };
   // 直连 Google 不需要 Authorization 头（使用 URL key），代理也不需要。
 
-  const res = await postJsonWithRetry(url, body, { timeoutMs: aiTimeoutMs, retries: aiRetries, baseDelayMs: 300, headers });
+  const res = await postJsonWithRetry(url, body, { timeoutMs: aiTimeoutMs, retries: aiRetries, baseDelayMs: 300, headers, signal: opts.signal });
 
   // 解析 Gemini 响应（代理应返回与直连一致的 JSON 结构）
   const text: string | undefined = res?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -650,7 +651,7 @@ async function tryGeminiInterpret(
 }
 
 // 新增：Zhipu 接入（支持代理与直连两种模式）
-async function tryZhipuInterpret(input: InterpretInput): Promise<InterpretResult> {
+async function tryZhipuInterpret(input: InterpretInput, opts: { signal?: AbortSignal } = {}): Promise<InterpretResult> {
   const env: any = (import.meta as any).env || {};
   const enabled = String(env?.VITE_ENABLE_AI_READING ?? 'false') === 'true';
   const disabledZhipu = String(env?.VITE_DISABLE_ZHIPU ?? '0') === '1';
@@ -694,7 +695,7 @@ async function tryZhipuInterpret(input: InterpretInput): Promise<InterpretResult
   const retries = Number(env?.VITE_ZHIPU_RETRIES);
   const aiRetries = Number.isFinite(retries) && retries >= 0 ? Math.floor(retries) : (Number(env?.VITE_AI_RETRIES) || 2);
 
-  const res = await postJsonWithRetry(url, body, { timeoutMs, retries: aiRetries, baseDelayMs: 300, headers });
+  const res = await postJsonWithRetry(url, body, { timeoutMs, retries: aiRetries, baseDelayMs: 300, headers, signal: opts.signal });
 
   const text: string | undefined = res?.choices?.[0]?.message?.content;
   if (!text || typeof text !== 'string') throw new Error('Zhipu 无候选内容');
@@ -717,6 +718,26 @@ async function tryZhipuInterpret(input: InterpretInput): Promise<InterpretResult
  * - VITE_AI_TIMEOUT_MS: number，默认 15000（用于 AI 请求超时）
  * - VITE_AI_RETRIES: number，默认 2（用于 AI 请求重试次数）
  */
+// 轻量 Promise.any 替代实现：在老的 TS lib 目标下避免直接使用 Promise.any
+function promiseAnyFulfilled<T>(promises: Promise<T>[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let rejections = 0;
+    const total = promises.length;
+    if (total === 0) {
+      reject(new Error('No promises to race'));
+      return;
+    }
+    for (const p of promises) {
+      p.then(resolve).catch(() => {
+        rejections += 1;
+        if (rejections >= total) {
+          reject(new Error('All promises rejected'));
+        }
+      });
+    }
+  });
+}
+
 export async function interpretQuestion(
   input: InterpretInput,
   opts: { timeoutMs?: number; retries?: number; baseDelayMs?: number } = {},
@@ -733,23 +754,87 @@ export async function interpretQuestion(
   const allowZhipu = forceZhiVal === undefined ? true : !!forceZhiVal;
 
   if (enableAI) {
-    // 常规顺序：先 Gemini，失败后（若允许）尝试 Zhipu
-    let lastErr: any;
-    if (allowGemini) {
-      try {
-        const ai = await tryGeminiInterpret({ ...input, reversed: !!input.reversed });
-        return ai;
-      } catch (e) { lastErr = e; }
-    }
+    const hedgeCfg = readHedgeConfig(env);
 
-    if (allowZhipu) {
-      try {
-        const ai2 = await tryZhipuInterpret({ ...input, reversed: !!input.reversed });
-        return ai2;
-      } catch (e) { lastErr = e; }
-    }
+    // 若开启 Hedge 且两路均允许：采用“先 Gemini，delay 后起 Zhipu；先成功者胜出；按配置中止败方；总超时控制”
+    if (hedgeCfg.enabled && allowGemini && allowZhipu) {
+      // 日志门控：仅在 Hedge 开启时根据级别输出，避免污染正常控制台
+      const levelOrder: Record<HedgeLogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+      const threshold = levelOrder[hedgeCfg.logLevel] ?? 2;
+      const hlog = (level: HedgeLogLevel, ...args: any[]) => {
+        if (levelOrder[level] < threshold) return;
+        // 在开发态附加 [hedge] 前缀，便于 grep；生产可继续保留 warn/error
+        if (level === 'debug') console.log('[hedge]', ...args);
+        else if (level === 'info') console.info('[hedge]', ...args);
+        else if (level === 'warn') console.warn('[hedge]', ...args);
+        else console.error('[hedge]', ...args);
+      };
 
-    // 失败时回退到 Mock
+      const totalTimeoutMs = (() => {
+        const n = Number(opts.timeoutMs);
+        return Number.isFinite(n) && n > 0 ? Math.floor(n) : (Number(env?.VITE_AI_TIMEOUT_MS) || 15000);
+      })();
+
+      const gemCtrl = new AbortController();
+      const zhiCtrl = new AbortController();
+
+      type HedgeWinner = { provider: 'gemini' | 'zhipu'; res: InterpretResult };
+
+      // 标注 provider 的 Promise，便于优胜者判定与败方 abort
+      const gemP: Promise<HedgeWinner> = tryGeminiInterpret({ ...input, reversed: !!input.reversed }, { signal: gemCtrl.signal })
+        .then((res) => ({ provider: 'gemini' as const, res }));
+      const zhiP: Promise<HedgeWinner> = (async () => {
+        // 受控延迟后再起跑 Zhipu；若期间已超时/胜出，将在后续 abort 中断
+        await delay(Math.max(0, hedgeCfg.delayMs));
+        if (zhiCtrl.signal.aborted) throw new Error('aborted-before-start');
+        return tryZhipuInterpret({ ...input, reversed: !!input.reversed }, { signal: zhiCtrl.signal })
+          .then((res) => ({ provider: 'zhipu' as const, res }));
+      })();
+
+      // 使用本地 promiseAnyFulfilled 实现“第一个成功者”
+      const firstFulfilled = promiseAnyFulfilled<HedgeWinner>([gemP, zhiP]);
+      const timeoutRace = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Hedge total timeout')), Math.max(1, totalTimeoutMs));
+      });
+
+      try {
+        const winner = await Promise.race([firstFulfilled, timeoutRace]) as HedgeWinner;
+        hlog('info', 'winner', winner.provider);
+        if (hedgeCfg.abortLoser) {
+          if (winner.provider === 'gemini') {
+            zhiCtrl.abort('loser-abort');
+            hlog('debug', 'abort loser: zhipu');
+          } else {
+            gemCtrl.abort('loser-abort');
+            hlog('debug', 'abort loser: gemini');
+          }
+        }
+        return winner.res;
+      } catch (err) {
+        // 触发总超时或两路均失败：中止未完成的请求，交由下方 Mock 回退
+        gemCtrl.abort('total-timeout-or-all-failed');
+        zhiCtrl.abort('total-timeout-or-all-failed');
+        hlog('warn', 'hedge failed, fallback to mock', err instanceof Error ? err.message : err);
+        // 继续走下方回退逻辑
+      }
+    } else {
+      // 常规顺序：先 Gemini，失败后（若允许）尝试 Zhipu
+      let lastErr: any;
+      if (allowGemini) {
+        try {
+          const ai = await tryGeminiInterpret({ ...input, reversed: !!input.reversed });
+          return ai;
+        } catch (e) { lastErr = e; }
+      }
+
+      if (allowZhipu) {
+        try {
+          const ai2 = await tryZhipuInterpret({ ...input, reversed: !!input.reversed });
+          return ai2;
+        } catch (e) { lastErr = e; }
+      }
+      // 失败时回退到 Mock
+    }
   }
 
   // ====== Mock 路径保持不变 ======
