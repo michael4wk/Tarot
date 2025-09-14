@@ -23,6 +23,16 @@ interface ImportMetaEnv {
   readonly VITE_MOCK_DELAY_MIN?: string; // 毫秒，字符串以匹配 Vite env 约定
   readonly VITE_MOCK_DELAY_MAX?: string; // 毫秒
   readonly VITE_MOCK_FAIL_RATE?: string; // 0-1 小数的字符串
+
+  // 方案C：受控并发竞速回退（仅脚手架，默认关闭，无行为改动）
+  // - HEDGE_ENABLED：是否启用竞速（'1'/'true' 为开；'0'/'false' 为关），默认关闭
+  readonly VITE_AI_HEDGE_ENABLED?: '0' | '1' | 'true' | 'false';
+  // - HEDGE_DELAY_MS：Zhipu（或第二路）起跑延迟，字符串形式的毫秒数，默认 250
+  readonly VITE_AI_HEDGE_DELAY_MS?: string;
+  // - ABORT_LOSER：是否中止失败方（'1'/'true' 为启用），默认启用
+  readonly VITE_AI_ABORT_LOSER?: '0' | '1' | 'true' | 'false';
+  // - HEDGE_LOG_LEVEL：日志级别，默认 'warn'
+  readonly VITE_AI_HEDGE_LOG_LEVEL?: 'debug' | 'info' | 'warn' | 'error';
 }
 
 interface ImportMeta {

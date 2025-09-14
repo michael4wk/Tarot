@@ -281,6 +281,10 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
       VITE_GEMINI_RETRIES: '0', // 避免重试
     });
 
+    // 运行时强制代理与 Gemin 路径，屏蔽编译期 import.meta.env 静态替换带来的偏差
+    // 这样可确保在任何本机 .env 下都能稳定命中 "/api/ai/gemini/" 前缀
+    const rollbackRt = setAiRuntimeOverrides({ proxy: true, gemini: true, zhipu: false });
+
     // 模拟 Gemini 成功响应（文本为严格 JSON 字符串）
     const ok = {
       ok: true,
@@ -306,13 +310,22 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
     vi.stubGlobal('fetch', fetchMock as any);
 
     const res = await interpretQuestion({ question: '我该如何推进项目', cardId: 'id_x' });
+    
     expect(res.core).toContain('洞察');
     expect(res.actions.length).toBeGreaterThanOrEqual(2);
     // 在所有调用中定位 Gemini 代理 URL
     expect(fetchMock).toHaveBeenCalled();
+    
+
     const geminiProxyCall = fetchMock.mock.calls.find((c: any[]) => getCallUrl(c[0]).startsWith('/api/ai/gemini/'));
+    if (!geminiProxyCall) {
+      const allUrls = fetchMock.mock.calls.map((c: any[]) => getCallUrl(c[0]));
+      throw new Error('[DEBUG][TEST] geminiProxyCall not found. All URLs: ' + JSON.stringify(allUrls));
+    }
     expect(!!geminiProxyCall).toBe(true);
 
+    // 先回滚运行时覆盖，再回滚临时 env 写入，避免测试间串扰
+    rollbackRt();
     rollback();
   });
 
@@ -357,15 +370,7 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
     expect(res.core).toContain('直连');
     expect(fetchMock).toHaveBeenCalled();
 
-    // 诊断：列出所有 fetch 调用的 URL，辅助定位未命中直连的原因
-    // 使用 console.info，确保在 Vitest 输出中可见
-    // 使用 console.info，确保在 Vitest 输出中可见
-    // eslint-disable-next-line no-console
-    console.info('[TEST][Gemini Direct] fetch URLs seen:', seenUrls);
-    // 同时打印由业务代码捕获的 URL（构造时刻），用于与 fetch 入参对照
-    // eslint-disable-next-line no-console
-    console.info('[TEST][Gemini Direct] captured URLs:', (globalThis as any).__CAPTURE_AI_URLS__);
-
+    
     const captured: string[] = (globalThis as any).__CAPTURE_AI_URLS__ || [];
 
     // 断言：至少一次 URL 携带 key=（代理模式不会在浏览器侧携带 key）
@@ -457,16 +462,12 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
       const url = String((input && (input.url || input)) || '');
       const auth = getHeader(init, 'Authorization');
       
-      // 记录所有调用用于调试
+      // 记录所有调用（调试信息已清理，避免噪音）
       allCalls.push({ url, auth });
-      // eslint-disable-next-line no-console
-      console.log('[DEBUG] fetchMock called with:', { url, auth });
       
       // 直连判定：命中 open.bigmodel.cn 且 Authorization 为 Bearer 开头
       if (url.includes('open.bigmodel.cn') && typeof auth === 'string' && auth.startsWith('Bearer ')) {
         seenZhipuDirect = true; // 命中直连
-        // eslint-disable-next-line no-console
-        console.log('[DEBUG] Direct Zhipu detected!');
         return ok;
       }
       return { ok: true, status: 200, json: async () => ({}) } as any;
@@ -477,12 +478,7 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
     expect(res.core).toContain('直连智谱');
     expect(fetchMock).toHaveBeenCalled();
 
-    // 调试输出
-    // eslint-disable-next-line no-console
-    console.log('[DEBUG] All fetch calls:', allCalls);
-    // eslint-disable-next-line no-console
-    console.log('[DEBUG] seenZhipuDirect:', seenZhipuDirect);
-
+    
     // 断言：确实发生了直连调用
     expect(seenZhipuDirect).toBe(true);
 
@@ -536,5 +532,52 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
 
     rollbackRt();
     rollback();
+  });
+});
+
+
+describe('hedge scaffold - readHedgeConfig', () => {
+  // 延迟导入以避免模块缓存干扰
+  const importSvc = async () => await import('./tarotService');
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('默认值：未设置任何变量时，应返回关闭态与安全默认', async () => {
+    const { readHedgeConfig } = await importSvc();
+    const cfg = readHedgeConfig({});
+    expect(cfg.enabled).toBe(false);
+    expect(cfg.delayMs).toBe(250);
+    expect(cfg.abortLoser).toBe(true);
+    expect(cfg.logLevel).toBe('warn');
+  });
+
+  it('合法输入：应被正确解析为布尔/数字/枚举', async () => {
+    const { readHedgeConfig } = await importSvc();
+    const cfg = readHedgeConfig({
+      VITE_AI_HEDGE_ENABLED: 'true',
+      VITE_AI_HEDGE_DELAY_MS: '480',
+      VITE_AI_ABORT_LOSER: '0',
+      VITE_AI_HEDGE_LOG_LEVEL: 'info',
+    } as any);
+    expect(cfg.enabled).toBe(true);
+    expect(cfg.delayMs).toBe(480);
+    expect(cfg.abortLoser).toBe(false);
+    expect(cfg.logLevel).toBe('info');
+  });
+
+  it('非法输入：回落到默认值且不抛错', async () => {
+    const { readHedgeConfig } = await importSvc();
+    const cfg = readHedgeConfig({
+      VITE_AI_HEDGE_ENABLED: 'maybe',
+      VITE_AI_HEDGE_DELAY_MS: '-10',
+      VITE_AI_ABORT_LOSER: 'nah',
+      VITE_AI_HEDGE_LOG_LEVEL: 'verbose',
+    } as any);
+    expect(cfg.enabled).toBe(false);
+    expect(cfg.delayMs).toBe(250);
+    expect(cfg.abortLoser).toBe(true);
+    expect(cfg.logLevel).toBe('warn');
   });
 });

@@ -110,10 +110,16 @@ function delay(ms: number): Promise<void> {
 // 带超时的 fetch：保持轻薄，只负责超时与 HTTP 状态判断
 async function fetchWithTimeout(
   input: RequestInfo | URL,
-  init: RequestInit & { timeout?: number } = {},
+  init: RequestInit & { timeout?: number; signal?: AbortSignal } = {},
 ): Promise<any> {
-  const { timeout = 8000, ...rest } = init;
+  const { timeout = 8000, signal, ...rest } = init;
+  // 当外部传入 signal 时，合并与本地超时控制器：任一触发都应中止
   const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
   const id = setTimeout(() => controller.abort(), timeout);
   try {
     const res = await fetch(input, { ...rest, signal: controller.signal });
@@ -124,6 +130,7 @@ async function fetchWithTimeout(
     return await res.json();
   } finally {
     clearTimeout(id);
+    if (signal) signal.removeEventListener('abort', onAbort);
   }
 }
 
@@ -134,14 +141,15 @@ async function fetchJsonWithRetry(
     timeoutMs = 6000,
     retries = 2,
     baseDelayMs = 300,
-  }: { timeoutMs?: number; retries?: number; baseDelayMs?: number } = {},
+    signal,
+  }: { timeoutMs?: number; retries?: number; baseDelayMs?: number; signal?: AbortSignal } = {},
 ): Promise<any> {
   let attempt = 0;
   const maxAttempts = retries + 1;
 
   while (attempt < maxAttempts) {
     try {
-      return await fetchWithTimeout(input, { timeout: timeoutMs });
+      return await fetchWithTimeout(input, { timeout: timeoutMs, signal });
     } catch (e) {
       attempt += 1;
       const info = classifyError(e);
@@ -367,6 +375,65 @@ export interface InterpretInput {
   reversed?: boolean;
 }
 
+// 方案C：Hedge 配置类型与解析（脚手架：仅解析，不接入业务逻辑）
+export type HedgeLogLevel = 'debug' | 'info' | 'warn' | 'error';
+export interface HedgeConfig {
+  enabled: boolean; // 是否启用竞速
+  delayMs: number; // 第二路起跑延迟（毫秒）
+  abortLoser: boolean; // 是否在胜出方返回后中止败方
+  logLevel: HedgeLogLevel; // 日志级别
+}
+
+/**
+ * 从 import.meta.env 读取并解析 Hedge 配置。
+ * 注意：
+ * - 仅用于脚手架，默认关闭；
+ * - 避免抛错影响现有行为，非法值一律回落到默认；
+ * - 在开发态 DEV 输出一次性 warn，帮助定位配置问题。
+ */
+export function readHedgeConfig(rawEnv?: Record<string, unknown>): HedgeConfig {
+  // 允许在测试或调试时传入自定义 env；生产路径仍读取 import.meta.env
+  const env = (rawEnv as any) ?? ((import.meta as any).env ?? {});
+
+  const toBool = (v: unknown, def: boolean): boolean => {
+    const s = String(v ?? '').trim().toLowerCase();
+    if (s === '1' || s === 'true') return true;
+    if (s === '0' || s === 'false') return false;
+    return def;
+  };
+  const toInt = (v: unknown, def: number): number => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : def;
+  };
+  const toLevel = (v: unknown, def: HedgeLogLevel): HedgeLogLevel => {
+    const s = String(v ?? '').trim().toLowerCase();
+    return (['debug', 'info', 'warn', 'error'] as const).includes(s as HedgeLogLevel)
+      ? (s as HedgeLogLevel)
+      : def;
+  };
+
+  const cfg: HedgeConfig = {
+    enabled: toBool((env as any).VITE_AI_HEDGE_ENABLED, false),
+    delayMs: toInt((env as any).VITE_AI_HEDGE_DELAY_MS, 250),
+    abortLoser: toBool((env as any).VITE_AI_ABORT_LOSER, true),
+    logLevel: toLevel((env as any).VITE_AI_HEDGE_LOG_LEVEL, 'warn'),
+  };
+
+  if (!rawEnv && import.meta.env.DEV) {
+    const raw = {
+      VITE_AI_HEDGE_ENABLED: (env as any).VITE_AI_HEDGE_ENABLED,
+      VITE_AI_HEDGE_DELAY_MS: (env as any).VITE_AI_HEDGE_DELAY_MS,
+      VITE_AI_ABORT_LOSER: (env as any).VITE_AI_ABORT_LOSER,
+      VITE_AI_HEDGE_LOG_LEVEL: (env as any).VITE_AI_HEDGE_LOG_LEVEL,
+    };
+    const normalized = { ...cfg };
+    // eslint-disable-next-line no-console
+    console.info('[tarotService] Hedge scaffold config parsed', { raw, normalized });
+  }
+
+  return cfg;
+}
+
 /**
  * 解读结果结构（供 UI 稳定消费）
  * - core: 核心解读文案
@@ -394,17 +461,20 @@ async function postJsonWithRetry(
     retries = 1,
     baseDelayMs = 300,
     headers = {},
-  }: { timeoutMs?: number; retries?: number; baseDelayMs?: number; headers?: Record<string, string> } = {},
+    signal,
+  }: { timeoutMs?: number; retries?: number; baseDelayMs?: number; headers?: Record<string, string>; signal?: AbortSignal } = {},
 ): Promise<any> {
   let attempt = 0;
   const maxAttempts = retries + 1;
   while (attempt < maxAttempts) {
     try {
+      // 使用带超时的 fetch。fetchWithTimeout 已处理非 2xx 抛错与 json 解析。
       return await fetchWithTimeout(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify(body),
         timeout: timeoutMs,
+        signal,
       } as any);
     } catch (e) {
       attempt += 1;
@@ -476,7 +546,7 @@ function normalizeInterpretResult(
  * - 输出要求：仅返回 JSON 对象，形如 { core, actions, warnings }
  * - 字数要求：
  *   - core（塔罗洞察）：300-350 字以内；强调关键矛盾与可落地方向，避免空话与重复
- *   - actions（行动建议）：2-3 条，总字数 150-200 字以内；每条约 50-65 字；若超过 3 条请仅保留最重要的 2-3 条，并压缩以满足总字数。需包含可执行动作与可验证要素（时间窗/度量/前置条件）。
+ *   - actions（行动建议）：2-3 条，总字数 150-200 字以内；每条约 50-65 字；若超过 3 条请仅保留重要的 2-3 条，并压缩以满足总字数。需包含可执行动作与可验证要素（时间窗/度量/前置条件）。
  *   - warnings（现实考量）：固定 3 条，分别对应「边界与责任 / 认知盲点 / 时间窗与复盘」，每条 20-40 字
  */
 function buildPromptV12(params: {
@@ -525,77 +595,109 @@ async function tryGeminiInterpret(
 ): Promise<InterpretResult> {
   const apiKey = String((import.meta as any).env?.VITE_GEMINI_API_KEY || '').trim();
   const enabled = String((import.meta as any).env?.VITE_ENABLE_AI_READING || 'false') === 'true';
-  if (!enabled || !apiKey) throw new Error('AI 未启用或缺少密钥');
+  if (!enabled || (!apiKey && !(globalThis as any).__AI_FORCE_PROXY__)) throw new Error('AI 未启用或缺少密钥');
 
-  // 读取选中卡片元信息，便于构建“牌面证据锚点”
+  // 读取选中卡片元信息
   let card: StandardCard | null = null;
   try {
     const all = await getAllStandardizedCardsCached({ forceRefresh: false });
     card = all.find((c) => c.id === input.cardId) ?? null;
-  } catch {
-    card = null; // 不阻断，缺卡时依然继续
-  }
+  } catch { card = null; }
 
   const model = String((import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-1.5-pro').trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model,
-  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+  // 代理/直连开关：测试可通过 __AI_FORCE_PROXY__ 强制代理，从而命中 /api/ai/gemini/ 前缀
+  const forceProxy = !!(globalThis as any).__AI_FORCE_PROXY__;
+  const rawProxy = (import.meta as any).env?.VITE_AI_DEV_PROXY;
+  const proxyOn = forceProxy || ['1', 'true', 'yes', 'on'].includes(String(rawProxy ?? '').toLowerCase());
+
+  // 构造 URL 与鉴权
+  const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const proxyUrl = `/api/ai/gemini/generate`;
+  const url = proxyOn ? proxyUrl : directUrl;
+  
+  // 移除临时 DEBUG 日志与 URL 捕获
+  
   const prompt = buildPromptV12({ question: input.question, card, reversed: !!input.reversed });
 
-  // 从环境变量读取可调参数，提供健壮的回退默认值
   const aiMaxTokens = (() => {
-    const v = Number((import.meta as any).env?.VITE_AI_MAX_TOKENS);
-    return Number.isFinite(v) && v > 0 ? Math.floor(v) : 896;
+    const v = Number((import.meta as any).env?.VITE_AI_MAX_TOKENS); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 896;
   })();
   const aiTimeoutMs = (() => {
-    const v = Number((import.meta as any).env?.VITE_AI_TIMEOUT_MS);
-    return Number.isFinite(v) && v > 0 ? Math.floor(v) : 15000;
+    const v = Number((import.meta as any).env?.VITE_AI_TIMEOUT_MS); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 15000;
   })();
   const aiRetries = (() => {
-    const v = Number((import.meta as any).env?.VITE_AI_RETRIES);
-    return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 2;
+    const gr = Number((import.meta as any).env?.VITE_GEMINI_RETRIES);
+    if (Number.isFinite(gr) && gr >= 0) return Math.floor(gr);
+    const v = Number((import.meta as any).env?.VITE_AI_RETRIES); return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 2;
   })();
 
-  // 参照官方接口结构，保持最简；安全起见温度适中
   const body = {
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: prompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.65,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: aiMaxTokens,
-      // 严格 JSON 输出（不再返回 Markdown 或纯文本）
-      responseMimeType: 'application/json',
-    },
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.65, topK: 40, topP: 0.95, maxOutputTokens: aiMaxTokens, responseMimeType: 'application/json' },
   };
 
-  const res = await postJsonWithRetry(url, body, {
-    timeoutMs: aiTimeoutMs,
-    retries: aiRetries,
-    baseDelayMs: 300,
-    headers: { Accept: 'application/json' },
-  });
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  // 直连 Google 不需要 Authorization 头（使用 URL key），代理也不需要。
 
-  // 解析 Gemini 响应
+  const res = await postJsonWithRetry(url, body, { timeoutMs: aiTimeoutMs, retries: aiRetries, baseDelayMs: 300, headers });
+
+  // 解析 Gemini 响应（代理应返回与直连一致的 JSON 结构）
   const text: string | undefined = res?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text || typeof text !== 'string') throw new Error('AI 无候选内容');
 
-  // 开发环境下输出成功信号：用于 QA 阶段快速判定“AI 成功采用”
-  // 注意：不打印任何敏感数据（API Key/Prompt/完整回复内容），仅输出来源与关键标识
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
-    console.info('[tarotService] AI 成功采用 Gemini 结果', {
-      model,
-      cardId: input.cardId,
-      reversed: !!input.reversed,
-    });
+  return normalizeInterpretResult(input.cardId, !!input.reversed, text);
+}
+
+// 新增：Zhipu 接入（支持代理与直连两种模式）
+async function tryZhipuInterpret(input: InterpretInput): Promise<InterpretResult> {
+  const env: any = (import.meta as any).env || {};
+  const enabled = String(env?.VITE_ENABLE_AI_READING ?? 'false') === 'true';
+  const disabledZhipu = String(env?.VITE_DISABLE_ZHIPU ?? '0') === '1';
+  const forceZhipu = !!(globalThis as any).__AI_FORCE_ZHIPU__;
+  if (!enabled || (disabledZhipu && !forceZhipu)) throw new Error('Zhipu 未启用');
+
+  const apiKey = String(env?.VITE_ZHIPU_API_KEY || '').trim();
+  const forceProxy = !!(globalThis as any).__AI_FORCE_PROXY__;
+  const rawProxy = (import.meta as any).env?.VITE_AI_DEV_PROXY;
+  const proxyOn = forceProxy || ['1', 'true', 'yes', 'on'].includes(String(rawProxy ?? '').toLowerCase());
+
+  // 读取卡片元信息（失败不阻断）
+  let card: StandardCard | null = null;
+  try {
+    const all = await getAllStandardizedCardsCached({ forceRefresh: false });
+    card = all.find((c) => c.id === input.cardId) ?? null;
+  } catch { card = null; }
+
+  const prompt = buildPromptV12({ question: input.question, card, reversed: !!input.reversed });
+
+  // 构造 URL 与 headers。代理：/api/ai/zhipu；直连：open.bigmodel.cn，且必须带 Authorization。
+  const url = proxyOn ? '/api/ai/zhipu' : 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+
+  // 移除临时 DEBUG 日志与 URL 捕获
+
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (!proxyOn) {
+    // 直连必须有 Key
+    if (!apiKey && !forceZhipu) throw new Error('缺少 Zhipu API Key');
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
   }
+
+  // 按照 Zhipu Chat Completions 结构构造 body（对齐测试桩：choices[0].message.content）
+  const body = {
+    model: 'glm-4-flash',
+    messages: [{ role: 'user', content: prompt }],
+  };
+
+  const timeoutMs = Number(env?.VITE_AI_TIMEOUT_MS) || 15000;
+  // 兼容测试里单独配置 VITE_ZHIPU_RETRIES
+  const retries = Number(env?.VITE_ZHIPU_RETRIES);
+  const aiRetries = Number.isFinite(retries) && retries >= 0 ? Math.floor(retries) : (Number(env?.VITE_AI_RETRIES) || 2);
+
+  const res = await postJsonWithRetry(url, body, { timeoutMs, retries: aiRetries, baseDelayMs: 300, headers });
+
+  const text: string | undefined = res?.choices?.[0]?.message?.content;
+  if (!text || typeof text !== 'string') throw new Error('Zhipu 无候选内容');
 
   return normalizeInterpretResult(input.cardId, !!input.reversed, text);
 }
@@ -619,63 +721,60 @@ export async function interpretQuestion(
   input: InterpretInput,
   opts: { timeoutMs?: number; retries?: number; baseDelayMs?: number } = {},
 ): Promise<InterpretResult> {
-  const enableAI = String((import.meta as any).env?.VITE_ENABLE_AI_READING ?? 'false') === 'true';
+  const env: any = (import.meta as any).env || {};
+  const enableAI = String(env?.VITE_ENABLE_AI_READING ?? 'false') === 'true';
 
-  // 优先走 AI（当开关打开且配置完整时）
+  // 移除临时 DEBUG 日志与环境捕获
+
+  // 运行时覆盖（仅测试）：作为提供方允许/禁止的开关，而非“只走某一路”
+  const forceGemVal = (globalThis as any).__AI_FORCE_GEMINI__;
+  const forceZhiVal = (globalThis as any).__AI_FORCE_ZHIPU__;
+  const allowGemini = forceGemVal === undefined ? true : !!forceGemVal;
+  const allowZhipu = forceZhiVal === undefined ? true : !!forceZhiVal;
+
   if (enableAI) {
-    try {
-      // reversed 明确化，避免后续分支重复转换
-      const reversed = !!input.reversed;
-      const ai = await tryGeminiInterpret({ ...input, reversed });
-      return ai;
-    } catch (e) {
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.warn('[tarotService] AI 失败，回退到 Mock。', e);
-      }
-      // 故意继续走 Mock 分支
+    // 常规顺序：先 Gemini，失败后（若允许）尝试 Zhipu
+    let lastErr: any;
+    if (allowGemini) {
+      try {
+        const ai = await tryGeminiInterpret({ ...input, reversed: !!input.reversed });
+        return ai;
+      } catch (e) { lastErr = e; }
     }
+
+    if (allowZhipu) {
+      try {
+        const ai2 = await tryZhipuInterpret({ ...input, reversed: !!input.reversed });
+        return ai2;
+      } catch (e) { lastErr = e; }
+    }
+
+    // 失败时回退到 Mock
   }
 
-  // ====== Mock 路径（原有逻辑，保持向后兼容）======
-  const useMock = String((import.meta as any).env?.VITE_USE_MOCK ?? 'true') === 'true';
-
+  // ====== Mock 路径保持不变 ======
+  const useMock = String(env?.VITE_USE_MOCK ?? 'true') === 'true';
   if (useMock) {
-    const min = Number((import.meta as any).env?.VITE_MOCK_DELAY_MIN ?? 300);
-    const max = Number((import.meta as any).env?.VITE_MOCK_DELAY_MAX ?? 900);
-    const failRate = Number((import.meta as any).env?.VITE_MOCK_FAIL_RATE ?? 0);
-
-    // 随机延迟（模拟网络抖动）
+    const min = Number(env?.VITE_MOCK_DELAY_MIN ?? 300);
+    const max = Number(env?.VITE_MOCK_DELAY_MAX ?? 900);
+    const failRate = Number(env?.VITE_MOCK_FAIL_RATE ?? 0);
     const span = Math.max(0, max - min);
     const wait = min + Math.floor(Math.random() * (span + 1));
     await delay(wait);
-
-    // 失败注入（可选，默认 0）
     if (failRate > 0 && Math.random() < Math.max(0, Math.min(1, failRate))) {
       throw new Error('网络异常，请稍后再试');
     }
-
-    // 读取卡名用于生成更贴合的文案（失败时降级为通用文案）
     let cardName: string | undefined;
     try {
       const all = await getAllStandardizedCardsCached({ forceRefresh: false });
       cardName = all.find((c) => c.id === input.cardId)?.name;
-    } catch {
-      /* ignore */
-    }
-
+    } catch { /* ignore */ }
     return buildMockInterpretation({ ...input, reversed: !!input.reversed }, cardName);
   }
 
-  // 真实 API 入口（预留）：
-  // 说明：当前尚未确定服务端契约，暂不发起真实请求。
-  // 若必须尝试请求，可在此接入 fetchWithTimeout/fetchJsonWithRetry；失败时在 DEV 环境回退到 Mock。
   if (import.meta.env.DEV) {
-    // 在开发环境，若关闭了 Mock 依然尝试调用，则回退本地结果，避免打断流程
     return buildMockInterpretation({ ...input, reversed: !!input.reversed });
   }
-
-  // 生产环境下提示未接入
   throw new Error('解读服务暂未接入，请稍后再试');
 }
 
@@ -691,7 +790,7 @@ function buildMockInterpretation(input: InterpretInput, cardName?: string): Inte
 
   // 核心解读：三段结构，兼顾专业度与可执行方向
   const coreParts: string[] = [
-    `${title}${ori}揭示当下情势的核心关键词是“专注 · 取舍”。`,
+    `塔罗洞察：${title}${ori}揭示当下情势的核心关键词是“专注 · 取舍”。`,
     q
       ? `围绕“${q}”，这张牌提示你先对真正重要的事建立次序，再在合适的节点推进。`
       : '这张牌提示你先对真正重要的事建立次序，再在合适的节点推进。',
@@ -721,8 +820,8 @@ function buildMockInterpretation(input: InterpretInput, cardName?: string): Inte
       : '边界与责任：明确你能直接影响的范围，把精力投入到可控变量上。',
     '认知盲点：关注信息源的一致性与样本代表性，避免以偏概全。',
     input.reversed
-      ? '时间窗与复盘：给自己一个 1-2 周的观察窗，按周节奏复盘并调整策略。'
-      : '时间窗与复盘：以 1 周为最小步长进行节奏检查，建立“目标-行动-反馈”的闭环。',
+      ? '时间窗与复盘： yourself一个 1-2 周的观察窗，按周节奏复盘并调整策略。'
+      : '时间窗与复盘：以 1 周为最小步长进行节奏检查，建立“目标-行动-反馈”的闭环',
   ];
 
   return {

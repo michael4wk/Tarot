@@ -11,8 +11,8 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.vue,.js,.jsx --fix && prettier . --write",
     "format": "prettier . --write",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run src/**/*.spec.ts",
+    "test:watch": "vitest src/**/*.spec.ts",
     "clean": "rimraf dist coverage .vite",
     "prepare": "husky"
   },
