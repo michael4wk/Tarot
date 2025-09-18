@@ -390,10 +390,26 @@ export interface HedgeConfig {
  * - 仅用于脚手架，默认关闭；
  * - 避免抛错影响现有行为，非法值一律回落到默认；
  * - 在开发态 DEV 输出一次性 warn，帮助定位配置问题。
+ * - 变量优先级（后者覆盖前者）：process.env < import.meta.env < __TEST_IMPORT_META_ENV__ < rawEnv
  */
 export function readHedgeConfig(rawEnv?: Record<string, unknown>): HedgeConfig {
   // 允许在测试或调试时传入自定义 env；生产路径仍读取 import.meta.env
-  const env = (rawEnv as any) ?? ((import.meta as any).env ?? {});
+  const importMetaEnv: any = ((import.meta as any).env ?? {});
+  // 以 process.env 为最低优先级基底
+  let env: any = {};
+  try {
+    const penv: any = (typeof process !== 'undefined' && (process as any)?.env) ? (process as any).env : undefined;
+    if (penv && typeof penv === 'object') env = { ...env, ...penv };
+  } catch {}
+  // 然后用 import.meta.env 覆盖之
+  env = { ...env, ...importMetaEnv };
+  // 再合并全局测试覆盖，优先于前两者
+  try {
+    const ov: any = (globalThis as any).__TEST_IMPORT_META_ENV__;
+    if (ov && typeof ov === 'object') env = { ...env, ...ov };
+  } catch {}
+  // 若调用方显式传入 rawEnv，则视为最高优先级（用于单测场景）
+  if (rawEnv && typeof rawEnv === 'object') env = { ...env, ...(rawEnv as any) };
 
   const toBool = (v: unknown, def: boolean): boolean => {
     const s = String(v ?? '').trim().toLowerCase();
@@ -585,6 +601,61 @@ function buildPromptV12(params: {
   ].join('\n');
 }
 
+// 统一获取 env（支持测试用全局覆盖 __TEST_IMPORT_META_ENV__），以避免不同模块 import.meta.env 对象不共享导致的注入偏差。
+function getEnv(): any {
+  try {
+    // 1) 基础：Vite 的 import.meta.env（浏览器/打包环境）
+    const raw: any = (import.meta as any).env || {};
+    let merged: any = { ...raw };
+
+    // 2) 兼容：Node 测试环境（Vitest）下的 process.env
+    //    - Vitest 运行于 Node，上下文间 globalThis 可能不同，但 process.env 是进程级共享
+    let penv: any = undefined;
+    try {
+      penv = (typeof process !== 'undefined' && (process as any)?.env) ? (process as any).env : undefined;
+      if (penv && typeof penv === 'object') {
+        merged = { ...merged, ...penv };
+      }
+    } catch {}
+
+    // 3) 测试专用最高优先级覆盖：__TEST_IMPORT_META_ENV__
+    let ov: any = undefined;
+    try {
+      ov = (globalThis as any).__TEST_IMPORT_META_ENV__;
+      if (ov && typeof ov === 'object') {
+        merged = { ...merged, ...ov };
+      }
+    } catch {}
+
+    // 4) 仅测试诊断：镜像关键字段，便于断言覆盖是否生效
+    try {
+      const penvSnap = penv && typeof penv === 'object' ? {
+        VITE_ENABLE_AI_READING: penv.VITE_ENABLE_AI_READING,
+        VITE_AI_HEDGE_ENABLED: penv.VITE_AI_HEDGE_ENABLED,
+        VITE_AI_HEDGE_LOG_LEVEL: penv.VITE_AI_HEDGE_LOG_LEVEL,
+        VITE_AI_HEDGE_DELAY_MS: penv.VITE_AI_HEDGE_DELAY_MS,
+        VITE_AI_ABORT_LOSER: penv.VITE_AI_ABORT_LOSER,
+      } : undefined;
+      const mergedSnap = {
+        VITE_ENABLE_AI_READING: merged?.VITE_ENABLE_AI_READING,
+        VITE_AI_HEDGE_ENABLED: merged?.VITE_AI_HEDGE_ENABLED,
+        VITE_AI_HEDGE_LOG_LEVEL: merged?.VITE_AI_HEDGE_LOG_LEVEL,
+        VITE_AI_HEDGE_DELAY_MS: merged?.VITE_AI_HEDGE_DELAY_MS,
+        VITE_AI_ABORT_LOSER: merged?.VITE_AI_ABORT_LOSER,
+      };
+      (globalThis as any).__DBG_GETENV__ = {
+        ovKeys: ov && typeof ov === 'object' ? Object.keys(ov) : [],
+        penv: penvSnap,
+        merged: mergedSnap,
+      };
+    } catch {}
+
+    return merged;
+  } catch {
+    return {};
+  }
+}
+
 /**
  * 调用 Gemini API（v1beta generateContent）
  * - 默认模型可由 VITE_GEMINI_MODEL 指定（如 gemini-1.5-pro），否则给出安全默认
@@ -594,8 +665,9 @@ async function tryGeminiInterpret(
   input: InterpretInput,
   opts: { signal?: AbortSignal } = {},
 ): Promise<InterpretResult> {
-  const apiKey = String((import.meta as any).env?.VITE_GEMINI_API_KEY || '').trim();
-  const enabled = String((import.meta as any).env?.VITE_ENABLE_AI_READING || 'false') === 'true';
+  const env: any = getEnv();
+  const apiKey = String(env?.VITE_GEMINI_API_KEY || '').trim();
+  const enabled = String(env?.VITE_ENABLE_AI_READING || 'false') === 'true';
   if (!enabled || (!apiKey && !(globalThis as any).__AI_FORCE_PROXY__)) throw new Error('AI 未启用或缺少密钥');
 
   // 读取选中卡片元信息
@@ -605,11 +677,11 @@ async function tryGeminiInterpret(
     card = all.find((c) => c.id === input.cardId) ?? null;
   } catch { card = null; }
 
-  const model = String((import.meta as any).env?.VITE_GEMINI_MODEL || 'gemini-1.5-pro').trim();
+  const model = String(env?.VITE_GEMINI_MODEL || 'gemini-1.5-pro').trim();
 
   // 代理/直连开关：测试可通过 __AI_FORCE_PROXY__ 强制代理，从而命中 /api/ai/gemini/ 前缀
   const forceProxy = !!(globalThis as any).__AI_FORCE_PROXY__;
-  const rawProxy = (import.meta as any).env?.VITE_AI_DEV_PROXY;
+  const rawProxy = env?.VITE_AI_DEV_PROXY;
   const proxyOn = forceProxy || ['1', 'true', 'yes', 'on'].includes(String(rawProxy ?? '').toLowerCase());
 
   // 构造 URL 与鉴权
@@ -622,15 +694,15 @@ async function tryGeminiInterpret(
   const prompt = buildPromptV12({ question: input.question, card, reversed: !!input.reversed });
 
   const aiMaxTokens = (() => {
-    const v = Number((import.meta as any).env?.VITE_AI_MAX_TOKENS); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 896;
+    const v = Number(env?.VITE_AI_MAX_TOKENS); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 896;
   })();
   const aiTimeoutMs = (() => {
-    const v = Number((import.meta as any).env?.VITE_AI_TIMEOUT_MS); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 15000;
+    const v = Number(env?.VITE_AI_TIMEOUT_MS); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 15000;
   })();
   const aiRetries = (() => {
-    const gr = Number((import.meta as any).env?.VITE_GEMINI_RETRIES);
+    const gr = Number(env?.VITE_GEMINI_RETRIES);
     if (Number.isFinite(gr) && gr >= 0) return Math.floor(gr);
-    const v = Number((import.meta as any).env?.VITE_AI_RETRIES); return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 2;
+    const v = Number(env?.VITE_AI_RETRIES); return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 2;
   })();
 
   const body = {
@@ -652,7 +724,7 @@ async function tryGeminiInterpret(
 
 // 新增：Zhipu 接入（支持代理与直连两种模式）
 async function tryZhipuInterpret(input: InterpretInput, opts: { signal?: AbortSignal } = {}): Promise<InterpretResult> {
-  const env: any = (import.meta as any).env || {};
+  const env: any = getEnv();
   const enabled = String(env?.VITE_ENABLE_AI_READING ?? 'false') === 'true';
   const disabledZhipu = String(env?.VITE_DISABLE_ZHIPU ?? '0') === '1';
   const forceZhipu = !!(globalThis as any).__AI_FORCE_ZHIPU__;
@@ -660,7 +732,7 @@ async function tryZhipuInterpret(input: InterpretInput, opts: { signal?: AbortSi
 
   const apiKey = String(env?.VITE_ZHIPU_API_KEY || '').trim();
   const forceProxy = !!(globalThis as any).__AI_FORCE_PROXY__;
-  const rawProxy = (import.meta as any).env?.VITE_AI_DEV_PROXY;
+  const rawProxy = env?.VITE_AI_DEV_PROXY;
   const proxyOn = forceProxy || ['1', 'true', 'yes', 'on'].includes(String(rawProxy ?? '').toLowerCase());
 
   // 读取卡片元信息（失败不阻断）
@@ -742,7 +814,7 @@ export async function interpretQuestion(
   input: InterpretInput,
   opts: { timeoutMs?: number; retries?: number; baseDelayMs?: number } = {},
 ): Promise<InterpretResult> {
-  const env: any = (import.meta as any).env || {};
+  const env: any = getEnv();
   const enableAI = String(env?.VITE_ENABLE_AI_READING ?? 'false') === 'true';
 
   // 移除临时 DEBUG 日志与环境捕获
@@ -756,8 +828,49 @@ export async function interpretQuestion(
   if (enableAI) {
     const hedgeCfg = readHedgeConfig(env);
 
+    // 测试诊断：记录分支门控的即时快照（不影响业务逻辑）
+    try { (globalThis as any).__HEDGE_GATES__ = { enabled: !!hedgeCfg.enabled, allowGemini, allowZhipu, logLevel: hedgeCfg.logLevel }; } catch {}
+    // 进一步记录解析用的 env 关键信息与最终配置，便于排查 env 未生效
+    try {
+      const ov = (globalThis as any).__TEST_IMPORT_META_ENV__;
+      const raw = (import.meta as any)?.env || {};
+      let pEnvVals: any = {};
+      try {
+        const penv: any = (typeof process !== 'undefined' && (process as any)?.env) ? (process as any).env : undefined;
+        if (penv && typeof penv === 'object') {
+          pEnvVals = {
+            VITE_ENABLE_AI_READING: penv.VITE_ENABLE_AI_READING,
+            VITE_AI_HEDGE_ENABLED: penv.VITE_AI_HEDGE_ENABLED,
+            VITE_AI_HEDGE_LOG_LEVEL: penv.VITE_AI_HEDGE_LOG_LEVEL,
+            VITE_AI_HEDGE_DELAY_MS: penv.VITE_AI_HEDGE_DELAY_MS,
+            VITE_AI_ABORT_LOSER: penv.VITE_AI_ABORT_LOSER,
+          };
+        }
+      } catch {}
+      (globalThis as any).__HEDGE_DEBUG__ = {
+        ovKeys: ov && typeof ov === 'object' ? Object.keys(ov) : [],
+        rawEnv: {
+          VITE_ENABLE_AI_READING: raw?.VITE_ENABLE_AI_READING,
+          VITE_AI_HEDGE_ENABLED: raw?.VITE_AI_HEDGE_ENABLED,
+          VITE_AI_HEDGE_LOG_LEVEL: raw?.VITE_AI_HEDGE_LOG_LEVEL,
+          VITE_AI_HEDGE_DELAY_MS: raw?.VITE_AI_HEDGE_DELAY_MS,
+          VITE_AI_ABORT_LOSER: raw?.VITE_AI_ABORT_LOSER,
+        },
+        env: {
+          VITE_ENABLE_AI_READING: env?.VITE_ENABLE_AI_READING,
+          VITE_AI_HEDGE_ENABLED: env?.VITE_AI_HEDGE_ENABLED,
+          VITE_AI_HEDGE_LOG_LEVEL: env?.VITE_AI_HEDGE_LOG_LEVEL,
+          VITE_AI_HEDGE_DELAY_MS: env?.VITE_AI_HEDGE_DELAY_MS,
+          VITE_AI_ABORT_LOSER: env?.VITE_AI_ABORT_LOSER,
+        },
+        cfg: hedgeCfg,
+      };
+    } catch {}
+
     // 若开启 Hedge 且两路均允许：采用“先 Gemini，delay 后起 Zhipu；先成功者胜出；按配置中止败方；总超时控制”
     if (hedgeCfg.enabled && allowGemini && allowZhipu) {
+      // 测试可见的分支标记（不影响业务）：进入 hedge 分支
+      try { (globalThis as any).__HEDGE_BRANCH__ = 'hedge'; } catch {}
       // 日志门控：仅在 Hedge 开启时根据级别输出，避免污染正常控制台
       const levelOrder: Record<HedgeLogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
       const threshold = levelOrder[hedgeCfg.logLevel] ?? 2;
@@ -768,6 +881,18 @@ export async function interpretQuestion(
         else if (level === 'info') console.info('[hedge]', ...args);
         else if (level === 'warn') console.warn('[hedge]', ...args);
         else console.error('[hedge]', ...args);
+        // 测试可选捕获：当存在全局钩子时，镜像一份日志事件供单测稳定断言
+        const sink = (globalThis as any).__HEDGE_LOG_CAPTURE__;
+        if (typeof sink === 'function') {
+          try { sink(level, ...args); } catch {}
+        }
+        // 进一步镜像：记录最近一次事件与胜者（仅测试读取，不影响业务）
+        try {
+          (globalThis as any).__HEDGE_LAST_EVENT__ = { level, args };
+          if (level === 'info' && args && args[0] === 'winner') {
+            (globalThis as any).__HEDGE_WINNER__ = args[1];
+          }
+        } catch {}
       };
 
       const totalTimeoutMs = (() => {
@@ -818,6 +943,8 @@ export async function interpretQuestion(
         // 继续走下方回退逻辑
       }
     } else {
+      // 测试可见的分支标记（不影响业务）：进入顺序分支
+      try { (globalThis as any).__HEDGE_BRANCH__ = 'sequential'; } catch {}
       // 常规顺序：先 Gemini，失败后（若允许）尝试 Zhipu
       let lastErr: any;
       if (allowGemini) {

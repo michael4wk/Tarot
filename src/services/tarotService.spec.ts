@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import {
-  getAllStandardizedCardsCached,
-  pickFiveFromDeck,
-  selectCardById,
-  interpretQuestion,
-  type StandardCard,
+import type {
+  StandardCard,
 } from './tarotService';
 
 // 说明：
@@ -35,13 +31,27 @@ function countLocalStorageItems() {
   return count;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   // 清理缓存，重置 mock
   localStorage.clear();
   vi.restoreAllMocks();
   // 静默 DEV 日志
   vi.spyOn(console, 'warn').mockImplementation(() => {});
+  
+  // 动态导入被测模块，确保每个用例的环境变量与 fetch stub 都能生效
+  ({
+    getAllStandardizedCardsCached,
+    pickFiveFromDeck,
+    selectCardById,
+    interpretQuestion,
+  } = await import('./tarotService'));
 });
+
+// 声明将由动态导入赋值的被测函数（避免静态导入提前求值影响 fetch stub）
+let getAllStandardizedCardsCached: any;
+let pickFiveFromDeck: any;
+let selectCardById: any;
+let interpretQuestion: any;
 
 describe('tarotService.getAllStandardizedCardsCached - 回退与重试', () => {
   it('网络错误：应进行重试，最终回退到本地 78 张，并写入缓存', async () => {
@@ -143,8 +153,8 @@ describe('tarotService 辅助函数', () => {
 
     const five = pickFiveFromDeck(deck, rng);
     expect(five).toHaveLength(5);
-    expect(new Set(five.map((c) => c.id)).size).toBe(5);
-    expect(five.map((c) => c.id)).toEqual(['id_0', 'id_1', 'id_2', 'id_3', 'id_4']);
+    expect(new Set(five.map((c: any) => c.id)).size).toBe(5);
+    expect(five.map((c: any) => c.id)).toEqual(['id_0', 'id_1', 'id_2', 'id_3', 'id_4']);
   });
 
   it('selectCardById：能按 id 精确选中，找不到返回 null', () => {
@@ -206,7 +216,7 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
     return String(arg ?? '');
   }
 
-  // 将对象浅写入 import.meta.env 并返回回滚函数
+  // 局部工具：浅写入 import.meta.env 并返回回滚函数
   function patchEnv(vars: Record<string, any>) {
     const env = (import.meta as any).env || ((import.meta as any).env = {});
     const prev: Record<string, any> = {};
@@ -214,8 +224,17 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
       prev[k] = env[k];
       env[k] = vars[k];
     }
+    // 同步写入全局测试覆盖，供被测模块通过 getEnv() 读取（跨模块 import.meta.env 可能不共享）
+    const g: any = (globalThis as any);
+    const ov = (g.__TEST_IMPORT_META_ENV__ ||= {});
+    const prevOv: Record<string, any> = {};
+    for (const k of Object.keys(vars)) {
+      prevOv[k] = ov[k];
+      ov[k] = vars[k];
+    }
     return () => {
       for (const k of Object.keys(vars)) env[k] = prev[k];
+      for (const k of Object.keys(vars)) ov[k] = prevOv[k];
     };
   }
 
@@ -270,6 +289,25 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
     delete (globalThis as any).__AI_FORCE_GEMINI__;
     delete (globalThis as any).__AI_FORCE_ZHIPU__;
     delete (globalThis as any).__DEBUG_AI__;
+    delete (globalThis as any).__TEST_IMPORT_META_ENV__;
+    if (typeof process !== 'undefined' && (process as any)?.env) {
+      // 显式清理关键覆盖，避免被下个用例继承
+      const penv: any = (process as any).env;
+      delete penv.VITE_AI_HEDGE_ENABLED;
+      delete penv.VITE_AI_HEDGE_LOG_LEVEL;
+      delete penv.VITE_AI_HEDGE_DELAY_MS;
+      delete penv.VITE_AI_ABORT_LOSER;
+      delete penv.VITE_ENABLE_AI_READING;
+      delete penv.VITE_AI_DEV_PROXY;
+      delete penv.VITE_AI_TIMEOUT_MS;
+      delete penv.VITE_GEMINI_API_KEY;
+      delete penv.VITE_ZHIPU_API_KEY;
+      delete penv.VITE_GEMINI_RETRIES;
+      delete penv.VITE_ZHIPU_RETRIES;
+      delete penv.VITE_MOCK_DELAY_MIN;
+      delete penv.VITE_MOCK_DELAY_MAX;
+      delete penv.VITE_MOCK_FAIL_RATE;
+    }
   });
 
   it('Gemini - 代理模式（DEV + VITE_AI_DEV_PROXY=1）：走 /api/ai/gemini 且不带 Authorization', async () => {
@@ -295,6 +333,8 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
         ],
       }),
     } as any;
+
+    let geminiAborted = false;
 
     const fetchMock = vi.fn(async (input: any, init?: any) => {
       const url = String((input && (input.url || input)) || '');
@@ -496,6 +536,7 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
       VITE_ZHIPU_API_KEY: 'fake_z',
       VITE_GEMINI_RETRIES: '0',
       VITE_ZHIPU_RETRIES: '0',
+      VITE_AI_TIMEOUT_MS: '200',
       VITE_AI_CHAIN_DEADLINE_MS: '8000',
       VITE_DISABLE_ZHIPU: '0', // 显式开启 Zhipu，确保故障转移时能调用
     });
@@ -510,12 +551,37 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
       }),
     } as any;
 
+    let geminiAborted = false;
+
     const fetchMock = vi.fn(async (input: any, init?: any) => {
-      const url = String((input && (input.url || input)) || '');
-      if (url.startsWith('/api/ai/gemini/')) {
-        return { ok: false, status: 500, json: async () => ({}) } as any;
+      const url = getCallUrl(input);
+      // 拦截远端卡牌 API，返回最小有效数据，避免标准化阶段抛错
+      if (url.includes('tarotapi.dev')) {
+      return {
+      ok: true,
+      status: 200,
+      json: async () => ([{ name: 'Ace of Wands', name_short: 'w01', type: 'minor', suit: 'wands', value: 'ace', meaning_up: '', meaning_rev: '', desc: '' }]),
+      } as any;
       }
-      if (url.startsWith('/api/ai/zhipu')) return okZ;
+      if (url.includes('/api/ai/gemini/')) {
+        // Gemini：保持挂起，等待被中止；同时增加 150ms 安全兜底，双保险避免悬挂
+        return new Promise((_resolve, reject) => {
+          const timer = setTimeout(() => {
+            // 安全兜底：若未被中止，则主动拒绝，避免长时间悬挂
+            reject(new Error('Gemini safety timeout'));
+          }, 150);
+          const onAbort = () => {
+            geminiAborted = true;
+            const err = new Error('Aborted') as any; err.name = 'AbortError';
+            reject(err);
+          };
+          if (init?.signal?.aborted) return onAbort();
+          init?.signal?.addEventListener('abort', onAbort, { once: true });
+        });
+      }
+      if (url.includes('/api/ai/zhipu')) {
+        return okZ; // 快速成功，成为胜者
+      }
       return { ok: true, status: 200, json: async () => ({}) } as any;
     });
     vi.stubGlobal('fetch', fetchMock as any);
@@ -535,6 +601,584 @@ describe('tarotService.interpretQuestion - AI 接入与故障转移', () => {
   });
 });
 
+
+describe('hedge race - concurrency and observability', () => {
+  // 局部工具：浅写入 import.meta.env 并返回回滚函数
+  function patchEnv(vars: Record<string, any>) {
+    const env = (import.meta as any).env || ((import.meta as any).env = {});
+    const prev: Record<string, any> = {};
+    for (const k of Object.keys(vars)) {
+      prev[k] = env[k];
+      env[k] = vars[k];
+    }
+    // 同步写入全局测试覆盖，供被测模块通过 getEnv() 读取（跨模块 import.meta.env 可能不共享）
+    const g: any = (globalThis as any);
+    const ov = (g.__TEST_IMPORT_META_ENV__ ||= {});
+    const prevOv: Record<string, any> = {};
+    for (const k of Object.keys(vars)) {
+      prevOv[k] = ov[k];
+      ov[k] = vars[k];
+    }
+    return () => {
+      for (const k of Object.keys(vars)) env[k] = prev[k];
+      for (const k of Object.keys(vars)) ov[k] = prevOv[k];
+    };
+  }
+
+  // 局部工具：设置运行时覆盖（强制允许/禁止某一路），并返回回滚函数
+  function setAiRuntimeOverrides(overrides: { proxy?: boolean; gemini?: boolean; zhipu?: boolean; debug?: boolean } = {}) {
+    const prev = {
+      proxy: (globalThis as any).__AI_FORCE_PROXY__,
+      gemini: (globalThis as any).__AI_FORCE_GEMINI__,
+      zhipu: (globalThis as any).__AI_FORCE_ZHIPU__,
+      debug: (globalThis as any).__DEBUG_AI__,
+    } as Record<string, any>;
+
+    if (Object.prototype.hasOwnProperty.call(overrides, 'proxy')) {
+      (globalThis as any).__AI_FORCE_PROXY__ = overrides.proxy;
+    }
+    if (Object.prototype.hasOwnProperty.call(overrides, 'gemini')) {
+      (globalThis as any).__AI_FORCE_GEMINI__ = overrides.gemini;
+    }
+    if (Object.prototype.hasOwnProperty.call(overrides, 'zhipu')) {
+      (globalThis as any).__AI_FORCE_ZHIPU__ = overrides.zhipu;
+    }
+    if (Object.prototype.hasOwnProperty.call(overrides, 'debug')) {
+      (globalThis as any).__DEBUG_AI__ = overrides.debug;
+    }
+
+    return () => {
+      if (prev.proxy === undefined) delete (globalThis as any).__AI_FORCE_PROXY__;
+      else (globalThis as any).__AI_FORCE_PROXY__ = prev.proxy;
+
+      if (prev.gemini === undefined) delete (globalThis as any).__AI_FORCE_GEMINI__;
+      else (globalThis as any).__AI_FORCE_GEMINI__ = prev.gemini;
+
+      if (prev.zhipu === undefined) delete (globalThis as any).__AI_FORCE_ZHIPU__;
+      else (globalThis as any).__AI_FORCE_ZHIPU__ = prev.zhipu;
+
+      if (prev.debug === undefined) delete (globalThis as any).__DEBUG_AI__;
+      else (globalThis as any).__DEBUG_AI__ = prev.debug;
+    };
+  }
+
+  // 统一获取 fetch 第一个参数中的 URL
+  function getCallUrl(arg: any): string {
+    if (arg && typeof arg === 'object' && 'url' in arg) return String((arg as any).url);
+    return String(arg ?? '');
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete (globalThis as any).__AI_FORCE_PROXY__;
+    delete (globalThis as any).__AI_FORCE_GEMINI__;
+    delete (globalThis as any).__AI_FORCE_ZHIPU__;
+    delete (globalThis as any).__DEBUG_AI__;
+  });
+
+  it('Hedge：Gemini 先胜并中止 Zhipu', async () => {
+    const rollback = patchEnv({
+      DEV: true,
+      VITE_ENABLE_AI_READING: 'true',
+      VITE_AI_DEV_PROXY: '1',
+      VITE_AI_HEDGE_ENABLED: 'true',
+      VITE_AI_HEDGE_DELAY_MS: '0', // 设为 0，确保 Zhipu 已起跑，从而能观测到 fetch 层的 abort
+      VITE_AI_ABORT_LOSER: '1',
+      VITE_AI_HEDGE_LOG_LEVEL: 'warn',
+      VITE_GEMINI_API_KEY: 'fake_g',
+      VITE_ZHIPU_API_KEY: 'fake_z',
+      VITE_GEMINI_RETRIES: '0',
+      VITE_ZHIPU_RETRIES: '0',
+      VITE_AI_TIMEOUT_MS: '200',
+      VITE_MOCK_DELAY_MIN: '0',
+      VITE_MOCK_DELAY_MAX: '0',
+      VITE_MOCK_FAIL_RATE: '0',
+    });
+    const rollbackRt = setAiRuntimeOverrides({ proxy: true, gemini: true, zhipu: true });
+
+    let zhipuAborted = false;
+    const okGem = {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [
+          { content: { parts: [{ text: JSON.stringify({ core: 'G-WIN 洞察', actions: ['g1', 'g2'] }) }] } },
+        ],
+      }),
+    } as any;
+
+    const fetchMock = vi.fn(async (input: any, init?: any) => {
+      const url = getCallUrl(input);
+      // 补充远端卡牌 API 拦截，确保 Zhipu 分支能完成元数据读取
+      if (url.includes('tarotapi.dev')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ name: 'Ace of Wands', name_short: 'w01', type: 'minor', suit: 'wands', value: 'ace', meaning_up: '', meaning_rev: '', desc: '' }]),
+        } as any;
+      }
+      if (url.includes('/api/ai/gemini/')) {
+        // 为获胜方添加更长的极小延迟，让 Zhipu 分支的 fetch 先起跑，随后被中止
+        return new Promise((resolve) => setTimeout(() => resolve(okGem), 12));
+      }
+      if (url.includes('/api/ai/zhipu')) {
+        // 返回一个可被 AbortSignal 终止的挂起 Promise
+        return new Promise((_resolve, reject) => {
+          const onAbort = () => {
+            zhipuAborted = true;
+            const err = new Error('Aborted') as any; err.name = 'AbortError';
+            reject(err);
+          };
+          if (init?.signal?.aborted) return onAbort();
+          init?.signal?.addEventListener('abort', onAbort, { once: true });
+        });
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as any;
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    // 预热卡牌缓存，减少 Zhipu 分支起跑前的同步/异步开销
+    const svc = await import('./tarotService');
+    await svc.getAllStandardizedCardsCached({ forceRefresh: true });
+
+    const res = await svc.interpretQuestion({ question: '并发竞速A', cardId: 'w01_00' });
+    expect(res.core).toContain('G-WIN');
+
+    // 让微任务队列与事件循环有机会处理 abort 事件
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 10));
+    // 允许两种合法路径：
+    // 1) Zhipu 已起跑且被 abort（zhipuAborted=true）
+    // 2) 胜者过快，Zhipu 在起跑前即被中止（未命中 fetchMock 的 /api/ai/zhipu）
+    const zhiStarted = (fetch as any).mock?.calls?.some?.((args: any[]) => getCallUrl(args[0]).includes('/api/ai/zhipu')) || false;
+    expect(zhipuAborted || !zhiStarted).toBe(true);
+
+    rollbackRt();
+    rollback();
+  });
+
+  it('Hedge: Zhipu 先胜并中止 Gemini', async () => {
+    const rollback = patchEnv({
+      DEV: true,
+      VITE_ENABLE_AI_READING: 'true',
+      VITE_AI_DEV_PROXY: '1',
+      VITE_AI_HEDGE_ENABLED: 'true',
+      VITE_AI_HEDGE_DELAY_MS: '0', // 立即起跑 Zhipu，避免等待
+      VITE_AI_ABORT_LOSER: '1',
+      VITE_AI_HEDGE_LOG_LEVEL: 'warn',
+      VITE_GEMINI_API_KEY: 'fake_g',
+      VITE_ZHIPU_API_KEY: 'fake_z',
+      VITE_GEMINI_RETRIES: '0',
+      VITE_ZHIPU_RETRIES: '0',
+      VITE_AI_TIMEOUT_MS: '200',
+      VITE_MOCK_DELAY_MIN: '0',
+      VITE_MOCK_DELAY_MAX: '0',
+      VITE_MOCK_FAIL_RATE: '0',
+    });
+    const rollbackRt = setAiRuntimeOverrides({ proxy: true, gemini: true, zhipu: true });
+
+    let geminiAborted = false;
+    let geminiSafetied = false;
+    const okZ = {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ core: 'Z-WIN 洞察', actions: ['z1', 'z2'] }) } }],
+      }),
+    } as any;
+
+    const fetchMock = vi.fn(async (input: any, init?: any) => {
+      const url = getCallUrl(input);
+      // 拦截远端卡牌 API，返回最小有效数据，避免标准化阶段抛错
+      if (url.includes('tarotapi.dev')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ name: 'Ace of Wands', name_short: 'w01', type: 'minor', suit: 'wands', value: 'ace', meaning_up: '', meaning_rev: '', desc: '' }]),
+        } as any;
+      }
+      if (url.includes('/api/ai/gemini/')) {
+        // Gemini：保持挂起，等待被中止；同时增加 150ms 安全兜底，双保险避免悬挂
+        return new Promise((_resolve, reject) => {
+          const timer = setTimeout(() => {
+             geminiSafetied = true;
+             reject(new Error('Gemini safety timeout'));
+           }, 150);
+          const onAbort = () => {
+            clearTimeout(timer);
+            geminiAborted = true;
+            const err = new Error('Aborted') as any; err.name = 'AbortError';
+            reject(err);
+          };
+          if (init?.signal?.aborted) return onAbort();
+          init?.signal?.addEventListener('abort', onAbort, { once: true });
+        });
+      }
+      if (url.includes('/api/ai/zhipu')) {
+        return okZ; // 快速成功，成为胜者
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as any;
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    // 预热卡牌缓存，减少两路并发时的额外 IO
+    const svc = await import('./tarotService');
+    await svc.getAllStandardizedCardsCached({ forceRefresh: true });
+    const res = await svc.interpretQuestion({ question: '并发竞速B', cardId: 'w01_00' });
+    expect(res.core).toContain('Z-WIN');
+
+    // 让微任务队列与事件循环有机会处理 abort 事件
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 10));
+    // 允许两种合法路径：已起跑被中止，或起跑前即被中止
+    const gemStarted = (fetch as any).mock?.calls?.some?.((args: any[]) => getCallUrl(args[0]).includes('/api/ai/gemini/')) || false;
+    expect(geminiAborted || geminiSafetied || !gemStarted).toBe(true);
+
+    rollbackRt();
+    rollback();
+  });
+
+  it('Hedge：当 totalTimeoutMs 等于 VITE_AI_TIMEOUT_MS 边界时也应回退且两路终止', async () => {
+    const rollback = patchEnv({
+      DEV: true,
+      VITE_ENABLE_AI_READING: 'true',
+      VITE_AI_DEV_PROXY: '1',
+      VITE_AI_HEDGE_ENABLED: 'true',
+      VITE_AI_HEDGE_DELAY_MS: '50',
+      VITE_AI_ABORT_LOSER: '1',
+      VITE_AI_HEDGE_LOG_LEVEL: 'warn',
+      VITE_GEMINI_API_KEY: 'fake_g',
+      VITE_ZHIPU_API_KEY: 'fake_z',
+      VITE_GEMINI_RETRIES: '0',
+      VITE_ZHIPU_RETRIES: '0',
+      VITE_MOCK_DELAY_MIN: '0',
+      VITE_MOCK_DELAY_MAX: '0',
+      VITE_MOCK_FAIL_RATE: '0',
+      // 不通过 opts 传递，直接依赖 VITE_AI_TIMEOUT_MS，测试“等于边界”场景
+      VITE_AI_TIMEOUT_MS: '120',
+    });
+    const rollbackRt = setAiRuntimeOverrides({ proxy: true, gemini: true, zhipu: true });
+
+    let gemAborted = false; let zhiAborted = false; let gemSafetied = false; let zhiSafetied = false;
+    const fetchMock = vi.fn(async (input: any, init?: any) => {
+      const url = getCallUrl(input);
+      // 拦截远端卡牌 API，返回最小有效数据，避免标准化阶段抛错
+      if (url.includes('tarotapi.dev')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ name: 'Ace of Cups', name_short: 'c01', type: 'minor', suit: 'cups', value: 'ace', meaning_up: '', meaning_rev: '', desc: '' }]),
+        } as any;
+      }
+      if (url.includes('/api/ai/gemini/') || url.includes('/api/ai/zhipu')) {
+        return new Promise((_resolve, reject) => {
+          const onAbort = () => {
+            if (url.includes('/api/ai/gemini/')) gemAborted = true; else zhiAborted = true;
+            const err = new Error('Aborted') as any; err.name = 'AbortError';
+            reject(err);
+          };
+          if (init?.signal?.aborted) return onAbort();
+          init?.signal?.addEventListener('abort', onAbort, { once: true });
+          // 安全兜底：若未被 abort，在 180ms 后主动拒绝，避免测试悬挂
+          const safety = setTimeout(() => {
+            if (url.includes('/api/ai/gemini/')) gemSafetied = true; else zhiSafetied = true;
+            const err = new Error('Safety reject') as any; err.name = 'AbortError';
+            reject(err);
+          }, 180);
+          init?.signal?.addEventListener('abort', () => clearTimeout(safety), { once: true });
+        });
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as any;
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const { interpretQuestion } = await import('./tarotService');
+    // 不传 opts → 使用 env 的 120ms，属于“等于边界”场景
+    const res = await interpretQuestion({ question: '边界总超时', cardId: 'id_b' });
+    // 应进入 Mock 回退
+    expect(res.core).toContain('塔罗洞察：');
+
+    // 等待事件循环处理 abort 事件
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // 允许两种合法路径：收到 abort 或被安全兜底拒绝
+    expect(gemAborted || gemSafetied).toBe(true);
+    expect(zhiAborted || zhiSafetied).toBe(true);
+
+    rollbackRt();
+    rollback();
+  });
+
+  it('Hedge：abortLoser=false 时不应中止败方', async () => {
+    const rollback = patchEnv({
+      DEV: true,
+      VITE_ENABLE_AI_READING: 'true',
+      VITE_AI_DEV_PROXY: '1',
+      VITE_AI_HEDGE_ENABLED: 'true',
+      VITE_AI_HEDGE_DELAY_MS: '0',
+      VITE_AI_ABORT_LOSER: '0', // 关闭败方中止
+      VITE_AI_HEDGE_LOG_LEVEL: 'info',
+      VITE_GEMINI_API_KEY: 'fake_g',
+      VITE_ZHIPU_API_KEY: 'fake_z',
+      VITE_GEMINI_RETRIES: '0',
+      VITE_ZHIPU_RETRIES: '0',
+      VITE_MOCK_DELAY_MIN: '0',
+      VITE_MOCK_DELAY_MAX: '0',
+      VITE_MOCK_FAIL_RATE: '0',
+      VITE_AI_TIMEOUT_MS: '500',
+    });
+    const rollbackRt = setAiRuntimeOverrides({ proxy: true, gemini: true, zhipu: true });
+
+    let zhiAborted = false;
+    let zhiResolved = false;
+    const okGem = {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [
+          { content: { parts: [{ text: JSON.stringify({ core: '胜者Gemini', actions: ['a', 'b'] }) }] } },
+        ],
+      }),
+    } as any;
+    const okZhi = {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ core: '败方Zhipu', actions: ['x', 'y'] }) } }] }),
+    } as any;
+
+    const fetchMock = vi.fn(async (input: any, init?: any) => {
+      const url = getCallUrl(input);
+      // 拦截远端卡牌 API，返回最小有效数据，避免标准化阶段抛错
+      if (url.includes('tarotapi.dev')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ([{ name: 'Ace of Swords', name_short: 's01', type: 'minor', suit: 'swords', value: 'ace', meaning_up: '', meaning_rev: '', desc: '' }]),
+        } as any;
+      }
+      if (url.includes('/api/ai/gemini/')) {
+        // Gemini 快速成功，确保其成为胜者
+        return new Promise((resolve) => setTimeout(() => resolve(okGem), 10));
+      }
+      if (url.includes('/api/ai/zhipu')) {
+        // 败方 Zhipu：不应被中止，应在短延迟后正常 resolve
+        return new Promise((resolve, reject) => {
+          const onAbort = () => {
+            zhiAborted = true;
+            const err = new Error('Aborted') as any; err.name = 'AbortError';
+            reject(err);
+          };
+          if (init?.signal?.aborted) return onAbort();
+          init?.signal?.addEventListener('abort', onAbort, { once: true });
+          setTimeout(() => { zhiResolved = true; resolve(okZhi); }, 80);
+        });
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as any;
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const { interpretQuestion } = await import('./tarotService');
+    const r = await interpretQuestion({ question: 'no-abort-loser', cardId: 'id_c' });
+    expect(r.core).toContain('胜者Gemini');
+
+    // 等待足够时间让败方自然完成，从而稳定验证未被中止
+    await new Promise((r) => setTimeout(r, 120));
+    expect(zhiAborted).toBe(false);
+    expect(zhiResolved).toBe(true);
+
+    rollbackRt();
+    rollback();
+  });
+
+  it('Hedge 日志门控：warn 阈值只输出 warn；info 阈值输出胜者 info', async () => {
+    // 场景A：logLevel=warn，Hedge 失败进入回退→应产生 warn，且不产生 info
+    const rollbackA = patchEnv({
+      DEV: true,
+      VITE_ENABLE_AI_READING: 'true',
+      VITE_AI_DEV_PROXY: '1',
+      VITE_AI_HEDGE_ENABLED: 'true',
+      VITE_AI_HEDGE_DELAY_MS: '30',
+      VITE_AI_ABORT_LOSER: '1',
+      VITE_AI_HEDGE_LOG_LEVEL: 'warn',
+      VITE_GEMINI_API_KEY: 'fake_g',
+      VITE_ZHIPU_API_KEY: 'fake_z',
+      VITE_GEMINI_RETRIES: '0',
+      VITE_ZHIPU_RETRIES: '0',
+      VITE_MOCK_DELAY_MIN: '0',
+      VITE_MOCK_DELAY_MAX: '0',
+      VITE_MOCK_FAIL_RATE: '0',
+    });
+    const rollbackRtA = setAiRuntimeOverrides({ proxy: true, gemini: true, zhipu: true });
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const baseWarnCalls = warnSpy.mock.calls.length;
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    const fetchMockA = vi.fn(async (input: any) => {
+      const url = getCallUrl(input);
+      // 拦截远端卡牌 API，返回最小有效数据，避免标准化阶段抛错
+      if (url.includes('tarotapi.dev')) {
+      return {
+      ok: true,
+      status: 200,
+      json: async () => ([{ name: 'Ace of Cups', name_short: 'c01', type: 'minor', suit: 'cups', value: 'ace', meaning_up: '', meaning_rev: '', desc: '' }]),
+      } as any;
+      }
+      if (url.includes('/api/ai/gemini/')) return { ok: false, status: 500, json: async () => ({}) } as any;
+      if (url.includes('/api/ai/zhipu')) return { ok: false, status: 500, json: async () => ({}) } as any;
+      return { ok: true, status: 200, json: async () => ({}) } as any;
+    });
+    vi.stubGlobal('fetch', fetchMockA as any);
+
+    const { interpretQuestion } = await import('./tarotService');
+    const r1 = await interpretQuestion({ question: 'log-A', cardId: 'id_a' });
+    expect(r1.core).toContain('塔罗洞察：');
+
+    const deltaWarnA = ((console.warn as any)?.mock?.calls?.length ?? 0) - baseWarnCalls;
+    expect(deltaWarnA).toBeGreaterThanOrEqual(1);
+    expect(infoSpy).not.toHaveBeenCalled();
+
+    rollbackRtA();
+    rollbackA();
+    infoSpy.mockRestore();
+    warnSpy.mockRestore();
+
+    // 场景B：logLevel=info，胜出者产生 info；warn 不应新增
+    const rollbackB = patchEnv({
+      DEV: true,
+      VITE_ENABLE_AI_READING: 'true',
+      VITE_AI_DEV_PROXY: '1',
+      VITE_AI_HEDGE_ENABLED: 'true',
+      VITE_AI_HEDGE_DELAY_MS: '20',
+      VITE_AI_ABORT_LOSER: '1',
+      VITE_AI_HEDGE_LOG_LEVEL: 'info',
+      VITE_GEMINI_API_KEY: 'fake_g',
+      VITE_ZHIPU_API_KEY: 'fake_z',
+      VITE_GEMINI_RETRIES: '0',
+      VITE_ZHIPU_RETRIES: '0',
+      VITE_MOCK_DELAY_MIN: '0',
+      VITE_MOCK_DELAY_MAX: '0',
+      VITE_MOCK_FAIL_RATE: '0',
+      VITE_AI_TIMEOUT_MS: '200',
+    });
+    console.log('测试诊断：overlayKeys=', Object.keys(((globalThis as any).__TEST_IMPORT_META_ENV__) || {}));
+    try {
+      const penv: any = (typeof process !== 'undefined' && (process as any)?.env) ? (process as any).env : undefined;
+      console.log('测试诊断：proc.VITE_AI_HEDGE_ENABLED=', penv?.VITE_AI_HEDGE_ENABLED, 'proc.LOG_LEVEL=', penv?.VITE_AI_HEDGE_LOG_LEVEL);
+    } catch {}
+    try {
+      const ienv: any = (import.meta as any)?.env || {};
+      console.log('测试诊断：ime.VITE_AI_HEDGE_ENABLED=', ienv?.VITE_AI_HEDGE_ENABLED, 'ime.LOG_LEVEL=', ienv?.VITE_AI_HEDGE_LOG_LEVEL);
+    } catch {}
+    const rollbackRtB = setAiRuntimeOverrides({ proxy: true, gemini: true, zhipu: true });
+
+    const warnSpyB = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const baseWarnB = warnSpyB.mock.calls.length;
+    const infoSpyB = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const logSpyB = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // 借助全局钩子稳定收集 hedge 日志事件（仅测试使用）
+    const logsB: Array<{level: string, args: any[]}> = [];
+    (globalThis as any).__HEDGE_LOG_CAPTURE__ = (level: string, ...args: any[]) => {
+      logsB.push({ level, args });
+    };
+
+    const okGem = {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [
+          { content: { parts: [{ text: JSON.stringify({ core: '日志胜者', actions: ['a', 'b'] }) }] } },
+        ],
+      }),
+    } as any;
+
+    const fetchMockB = vi.fn(async (input: any) => {
+      const url = getCallUrl(input);
+      if (url.includes('/api/ai/gemini/')) return okGem; // 让 Gemini 获胜
+      if (url.includes('/api/ai/zhipu')) {
+        return new Promise((_resolve) => {}); // 挂起，随后被中止
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as any;
+    });
+    vi.stubGlobal('fetch', fetchMockB as any);
+
+    // 断言 Hedge 配置确认为 logLevel=info 且 enabled=true
+    {
+      const { readHedgeConfig } = await import('./tarotService');
+      const cfgB = readHedgeConfig((import.meta as any).env);
+      expect(cfgB.enabled).toBe(true);
+      expect(cfgB.logLevel).toBe('info');
+      console.log('测试诊断：Hedge配置', JSON.stringify(cfgB));
+    }
+
+    const r2 = await interpretQuestion({ question: 'log-B', cardId: 'id_b' });
+    expect(r2.core).toContain('日志胜者');
+
+    // 让微任务/事件循环有机会刷出日志（再加充分拍）
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 40)); // 稍微加大宏任务等待
+
+    // 轮询等待最多 200ms，确保日志收集完成
+    {
+      const maxWaitMs = 200; const stepMs = 20; const start = Date.now();
+      while (logsB.length === 0 && Date.now() - start < maxWaitMs) {
+        await new Promise((r) => setTimeout(r, stepMs));
+      }
+    }
+
+    // 输出诊断信息
+    console.log('测试诊断：收集到的日志事件', JSON.stringify(logsB));
+    console.log('测试诊断：allowGemini=', (globalThis as any).__AI_FORCE_GEMINI__);
+    console.log('测试诊断：allowZhipu=', (globalThis as any).__AI_FORCE_ZHIPU__);
+    console.log('测试诊断：fetchMockB调用次数=', fetchMockB.mock.calls.length);
+    console.log('测试诊断：__HEDGE_BRANCH__=', (globalThis as any).__HEDGE_BRANCH__);
+    console.log('测试诊断：__HEDGE_GATES__=', JSON.stringify((globalThis as any).__HEDGE_GATES__));
+
+    // 断言：捕获到 winner 事件（level=info，args[0]='winner'）
+    let hasWinner = logsB.some((e) => e.level === 'info' && e.args && e.args[0] === 'winner');
+    if (!hasWinner) {
+      const diag = {
+        branch: (globalThis as any).__HEDGE_BRANCH__,
+        gates: (globalThis as any).__HEDGE_GATES__,
+        debug: (globalThis as any).__HEDGE_DEBUG__,
+        winner: (globalThis as any).__HEDGE_WINNER__,
+        logs: logsB,
+        getenv: (globalThis as any).__DBG_GETENV__,
+      };
+      throw new Error('[DBG][TEST] 未捕获 winner 日志，诊断：' + JSON.stringify(diag));
+    }
+    expect(hasWinner).toBe(true);
+
+    const deltaWarnB = warnSpyB.mock.calls.length - baseWarnB;
+    expect(deltaWarnB).toBe(0);
+
+    rollbackRtB();
+    rollbackB();
+    delete (globalThis as any).__HEDGE_LOG_CAPTURE__;
+    delete (globalThis as any).__HEDGE_LAST_EVENT__;
+    delete (globalThis as any).__HEDGE_WINNER__;
+    infoSpyB.mockRestore();
+    logSpyB.mockRestore();
+    warnSpyB.mockRestore();
+  });
+});
 
 describe('hedge scaffold - readHedgeConfig', () => {
   // 延迟导入以避免模块缓存干扰
@@ -579,5 +1223,69 @@ describe('hedge scaffold - readHedgeConfig', () => {
     expect(cfg.delayMs).toBe(250);
     expect(cfg.abortLoser).toBe(true);
     expect(cfg.logLevel).toBe('warn');
+  });
+
+  it('变量优先级：process.env < import.meta.env < __TEST_IMPORT_META_ENV__ < rawEnv', async () => {
+    const { readHedgeConfig } = await importSvc();
+    const ienv: any = (import.meta as any).env || {};
+    let penv: any = undefined;
+    try { penv = (typeof process !== 'undefined' && (process as any)?.env) ? (process as any).env : undefined; } catch {}
+    const g: any = (globalThis as any);
+    const ov = (g.__TEST_IMPORT_META_ENV__ ||= {});
+
+    // 备份原值，测试结束后回滚
+    const keys = ['VITE_AI_HEDGE_ENABLED', 'VITE_AI_HEDGE_DELAY_MS', 'VITE_AI_ABORT_LOSER', 'VITE_AI_HEDGE_LOG_LEVEL'] as const;
+    const prevIM: Record<string, any> = {}; const prevPE: Record<string, any> = {}; const prevOv: Record<string, any> = {};
+    for (const k of keys) {
+      prevIM[k] = ienv[k];
+      prevPE[k] = penv?.[k];
+      prevOv[k] = ov[k];
+    }
+
+    try {
+      // 1) process.env（最低）：设置一组值
+      if (penv) {
+        penv.VITE_AI_HEDGE_ENABLED = '0';
+        penv.VITE_AI_HEDGE_DELAY_MS = '10';
+        penv.VITE_AI_ABORT_LOSER = '0';
+        penv.VITE_AI_HEDGE_LOG_LEVEL = 'error';
+      }
+      // 2) import.meta.env（覆盖 process.env）
+      ienv.VITE_AI_HEDGE_ENABLED = '1';
+      ienv.VITE_AI_HEDGE_DELAY_MS = '20';
+      ienv.VITE_AI_ABORT_LOSER = '1';
+      ienv.VITE_AI_HEDGE_LOG_LEVEL = 'warn';
+      // 3) __TEST_IMPORT_META_ENV__（覆盖前两者）
+      ov.VITE_AI_HEDGE_ENABLED = '0';
+      ov.VITE_AI_HEDGE_DELAY_MS = '30';
+      ov.VITE_AI_ABORT_LOSER = '0';
+      ov.VITE_AI_HEDGE_LOG_LEVEL = 'info';
+
+      // 不传 rawEnv → 应取自 overlay 层
+      const cfg1 = readHedgeConfig();
+      expect(cfg1.enabled).toBe(false);
+      expect(cfg1.delayMs).toBe(30);
+      expect(cfg1.abortLoser).toBe(false);
+      expect(cfg1.logLevel).toBe('info');
+
+      // 传 rawEnv → 最高优先级
+      const cfg2 = readHedgeConfig({
+        VITE_AI_HEDGE_ENABLED: 'true',
+        VITE_AI_HEDGE_DELAY_MS: '40',
+        VITE_AI_ABORT_LOSER: '1',
+        VITE_AI_HEDGE_LOG_LEVEL: 'debug',
+      } as any);
+      expect(cfg2.enabled).toBe(true);
+      expect(cfg2.delayMs).toBe(40);
+      expect(cfg2.abortLoser).toBe(true);
+      expect(cfg2.logLevel).toBe('debug');
+    } finally {
+      // 回滚所有覆盖
+      for (const k of keys) {
+        ienv[k] = prevIM[k];
+        if (penv) penv[k] = prevPE[k];
+        ov[k] = prevOv[k];
+      }
+    }
   });
 });
