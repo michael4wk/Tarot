@@ -33,6 +33,12 @@ interface ImportMetaEnv {
   readonly VITE_AI_ABORT_LOSER?: '0' | '1' | 'true' | 'false';
   // - HEDGE_LOG_LEVEL：日志级别，默认 'warn'
   readonly VITE_AI_HEDGE_LOG_LEVEL?: 'debug' | 'info' | 'warn' | 'error';
+
+  // Zhipu 仅参数不改提示词：生成参数调优项（可选）
+  readonly VITE_ZHIPU_TEMPERATURE?: string; // 建议 0.7~0.9，默认 0.8
+  readonly VITE_ZHIPU_TOP_P?: string; // 建议 0.8~0.95，默认 0.9
+  readonly VITE_ZHIPU_MAX_TOKENS?: string; // 建议 600~1200，默认 800
+  readonly VITE_ZHIPU_FREQ_PENALTY?: string; // 建议 0~0.5，默认 0.2
 }
 
 interface ImportMeta {
