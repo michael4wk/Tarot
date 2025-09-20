@@ -923,20 +923,23 @@ async function tryZhipuInterpret(input: InterpretInput, opts: { signal?: AbortSi
   // - 支持通过环境变量覆写；未配置时采用温和的默认值，以提升“饱满度”但避免过度发散
   const temperature = (() => {
     const v = Number(env?.VITE_ZHIPU_TEMPERATURE);
-    return Number.isFinite(v) ? v : 0.8; // 默认 0.8，提高一定随机性
+    // 默认更高的温度以增加表达的丰富度；仍允许 .env 覆盖
+    return Number.isFinite(v) ? v : 0.9;
   })();
   const top_p = (() => {
     const v = Number(env?.VITE_ZHIPU_TOP_P);
-    return Number.isFinite(v) ? v : 0.9; // 默认 0.9，配合 temperature 做核采样
+    // 默认稍高的核采样上限，配合较高温度，避免过度发散
+    return Number.isFinite(v) ? v : 0.92;
   })();
   const max_tokens = (() => {
     const v = Number(env?.VITE_ZHIPU_MAX_TOKENS);
-    // 取正整数，默认 800，放宽输出上限，便于“核心/行动/提醒”三段输出更充足
-    return Number.isFinite(v) && v > 0 ? Math.floor(v) : 800;
+    // 放宽输出上限，保障“核心/行动/提醒”三段结构有充足篇幅
+    return Number.isFinite(v) && v > 0 ? Math.floor(v) : 1000;
   })();
   const frequency_penalty = (() => {
     const v = Number(env?.VITE_ZHIPU_FREQ_PENALTY);
-    return Number.isFinite(v) ? v : 0.2; // 默认 0.2，轻微抑制重复
+    // 略低的重复惩罚，既抑制复读又不过度限缩内容
+    return Number.isFinite(v) ? v : 0.15;
   })();
 
   // 按照 Zhipu Chat Completions 结构构造 body（对齐测试桩：choices[0].message.content）
@@ -975,7 +978,8 @@ async function tryZhipuInterpret(input: InterpretInput, opts: { signal?: AbortSi
 
   if (!text || typeof text !== 'string') throw new Error('Zhipu 无候选内容');
 
-  return normalizeInterpretResult(input.cardId, !!input.reversed, text);
+  // 传入 debugLabel: 'zhipu' 以便 DEV 日志统一标记来源
+  return normalizeInterpretResult(input.cardId, !!input.reversed, text, { debugLabel: 'zhipu' });
 }
 
 export async function interpretQuestion(
