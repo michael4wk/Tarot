@@ -22,18 +22,25 @@
       "
     >
       <!-- H1 标题：使用令牌字号/行高，保持8pt网格节奏 -->
-      <h1
-        style="
-          margin: 0;
-          font-size: var(--font-size-h1);
-          line-height: var(--line-height-h1);
-          font-weight: 600;
-          letter-spacing: 0.02em;
-          margin-bottom: var(--h1-bottom-extra, 0px);
-        "
+      <div
+        class="hero-title-bar"
+        style="display: flex; align-items: center; gap: 10px; margin-bottom: var(--h1-bottom-extra, 0px)"
+        aria-label="页面标题"
       >
-        今日指引 · 让塔罗帮助我看清方向
-      </h1>
+        <!-- 左侧 Logo：采用本地静态资源，Vite 构建时会输出正确路径 -->
+        <img :src="cardLogo" alt="Tarot 标志" class="hero-logo" />
+        <h1
+          style="
+            margin: 0;
+            font-size: var(--font-size-h1);
+            line-height: var(--line-height-h1);
+            font-weight: 600;
+            letter-spacing: 0.02em;
+          "
+        >
+          今日指引 · 让塔罗帮助我看清方向
+        </h1>
+      </div>
       <!-- Body 副文案：统一 Body 尺寸（可后续收敛到 tokens 文案体系） -->
       <p
         style="
@@ -233,6 +240,8 @@ import type { StandardCard } from '@/services/tarotService';
 import { getAllStandardizedCardsCached, pickFiveFromDeck } from '@/services/tarotService';
 // 开发期可视化：图片映射覆盖率校验（仅 DEV 打印报告，无副作用）
 import { logValidationReport } from '@/utils/imageMappingValidator';
+// 引入本地 Logo 资源（相对当前视图路径）
+import cardLogo from '../../assets/images/card_logo.png';
 
 // 组件消费层类型：仅需要 id/frontSrc/alt/isReversed
 interface DemoCard {
@@ -530,5 +539,27 @@ h1 {
   gap: 12px;
   align-items: center;
   margin-bottom: 8px;
+}
+
+/* 标题栏：左 Logo 右标题，保持与 tokens 一致的底部间距由容器控制 */
+.hero-title-bar {
+  /* 其余布局已在内联中声明，这里保留类以便后续维护或覆盖 */
+}
+/* 首页 Logo 尺寸与显示策略：在深色背景下保持清晰；若 PNG 为透明背景则无需描边 */
+.hero-logo {
+  /* 光学居中：为图片中心稍微下移，使其与标题字面中心更为对齐 */
+  --hero-logo-optical-shift: 1px; /* 移动端默认下移 1px，可根据视觉再微调 */
+  width: 32px;
+  height: 32px;
+  object-fit: contain; /* 保持原始比例，不裁切 */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3)); /* 轻微投影提升辨识度 */
+  transform: translateY(var(--hero-logo-optical-shift)); /* 通过 CSS 变量控制下移量 */
+}
+@media (min-width: 900px) {
+  .hero-logo {
+    --hero-logo-optical-shift: 2px; /* 桌面端标题更大，适当增大下移以保持视觉居中 */
+    width: 36px;
+    height: 36px;
+  }
 }
 </style>

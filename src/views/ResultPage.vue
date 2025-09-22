@@ -56,7 +56,11 @@
       <!-- 成功态 -->
       <div v-else>
         <!-- 页面主标题（保留） -->
-        <h1 class="page-title">塔罗神谕</h1>
+        <div class="page-title-bar" aria-label="页面标题">
+          <!-- 左侧 Logo：采用本地静态资源，尺寸在移动端为 32px，桌面端略放大 -->
+          <img :src="cardLogo" alt="Tarot 标志" class="page-logo" />
+          <h1 class="page-title">塔罗神谕</h1>
+        </div>
         <!-- 顶部卡片式信息区：左卡面右信息 -->
         <article class="result-header">
           <div class="result-cover">
@@ -142,6 +146,8 @@ import type { InterpretResult, StandardCard } from '@/services/tarotService';
 import { interpretQuestion, getAllStandardizedCardsCached } from '@/services/tarotService';
 // 新增：塔罗本地化工具（中文名/花色/等级/元素）
 import { toZhSuit, toZhRank, toZhMajor, suitElementZh, majorElementZh } from '@/utils/tarotI18n';
+// 引入本地 Logo 资源（Vite 会在构建时处理并输出正确的静态文件路径）
+import cardLogo from '../../assets/images/card_logo.png';
 
 interface Payload {
   question: string;
@@ -275,11 +281,38 @@ onMounted(() => {
 <style scoped>
 /* 页面主标题 */
 .page-title {
-  margin: 0 0 12px;
+  /* 将原来的 0 0 12px 改为 0，避免在 flex 容器内出现外边距塌陷问题，由父容器控制底部间距 */
+  margin: 0;
   font-size: 22px;
   line-height: 28px;
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+/* 标题栏：左 Logo 右标题，保证垂直居中与合适间距 */
+.page-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 保持与原来的标题底部间距一致 */
+  margin: 0 0 12px;
+}
+/* Logo 尺寸与显示策略：在深色背景下保持清晰；若 PNG 为透明背景则不需要额外描边 */
+.page-logo {
+  /* 光学居中：为图片中心稍微下移，使其与标题字面中心更为对齐 */
+  --page-logo-optical-shift: 1px; /* 移动端默认下移 1px，可根据视觉再微调 */
+  width: 32px;
+  height: 32px;
+  object-fit: contain; /* 保持原始比例，不裁切 */
+  /* 轻微投影以增强在浅/深背景下的可辨识度 */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  transform: translateY(var(--page-logo-optical-shift)); /* 通过 CSS 变量控制下移量 */
+}
+@media (min-width: 900px) {
+  .page-logo {
+    --page-logo-optical-shift: 2px; /* 桌面端标题更大，适当增大下移以保持视觉居中 */
+    width: 36px;
+    height: 36px;
+  }
 }
 
 /* 头部：卡片式容器，左卡面右信息，保持神秘感 */
