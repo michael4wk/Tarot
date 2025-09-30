@@ -7,7 +7,7 @@ const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 // 获取卡背 URL（通过 getCardImagePath 对一个必定不存在的牌型触发兜底来拿到实际字符串）
 let fallbackUrl = '';
 beforeAll(() => {
-  const missing: TarotCardLite = { type: 'major', value: 'non-exists-xxx' } as any;
+  const missing: TarotCardLite = { type: 'major', value: 'non-exists-xxx' };
   fallbackUrl = getCardImagePath(missing);
 });
 
@@ -60,7 +60,7 @@ const ranksWordToFile = [
 describe('images mapping - filename rule', () => {
   it('major arcana filenames (22/22)', () => {
     for (const [apiVal, slug] of majors) {
-      const card: TarotCardLite = { type: 'major', value: apiVal } as any;
+      const card: TarotCardLite = { type: 'major', value: apiVal };
       const fn = getCardImageFilename(card);
       expect(fn).toBe(`major_arcana_${slug}.png`);
     }
@@ -69,7 +69,7 @@ describe('images mapping - filename rule', () => {
   it('minor arcana filenames (56/56)', () => {
     for (const s of suits) {
       for (const [word, fileRank] of ranksWordToFile) {
-        const card: TarotCardLite = { type: 'minor', suit: s as any, value: word } as any;
+        const card: TarotCardLite = { type: 'minor', suit: s, value: word };
         const fn = getCardImageFilename(card);
         expect(fn).toBe(`minor_arcana_${s}_${fileRank}.png`);
       }
@@ -82,7 +82,7 @@ describe('images mapping - url lookup', () => {
     // 取一部分具有代表性的牌，避免测试对构建器产物路径的强耦合
     const subset: string[] = ['fool', 'priestess', 'fortune', 'hanged', 'world'];
     for (const slug of subset) {
-      const url = getCardImagePath({ type: 'major', value: slug } as any);
+      const url = getCardImagePath({ type: 'major', value: slug });
       // 注意：此处传入的 value = slug（已映射后的形式），用于验证资源存在。
       // 资源存在时，返回值应当为非兜底 URL。
       expect(url).not.toBe(fallbackUrl);
@@ -93,7 +93,7 @@ describe('images mapping - url lookup', () => {
   // 新增：对 22 张大阿卡纳进行 URL 命中全覆盖校验（使用 API value，依赖异常映射规则）
   it('major arcana urls exist (22/22 full check)', () => {
     for (const [apiVal, slug] of majors) {
-      const url = getCardImagePath({ type: 'major', value: apiVal } as any);
+      const url = getCardImagePath({ type: 'major', value: apiVal });
       expect(url).not.toBe(fallbackUrl);
       expect(url).toContain(`major_arcana_${slug}.png`);
     }
@@ -108,7 +108,7 @@ describe('images mapping - url lookup', () => {
     ] as const;
 
     for (const { suit, rank } of subset) {
-      const url = getCardImagePath({ type: 'minor', suit, value: rank } as any);
+      const url = getCardImagePath({ type: 'minor', suit, value: rank });
       expect(url).not.toBe(fallbackUrl);
       expect(url).toContain(`minor_arcana_${suit}_${rank}.png`);
     }
@@ -118,7 +118,7 @@ describe('images mapping - url lookup', () => {
   it('minor arcana urls exist (56/56 full check)', () => {
     for (const s of suits) {
       for (const [word, fileRank] of ranksWordToFile) {
-        const url = getCardImagePath({ type: 'minor', suit: s as any, value: word } as any);
+        const url = getCardImagePath({ type: 'minor', suit: s, value: word });
         expect(url).not.toBe(fallbackUrl);
         expect(url).toContain(`minor_arcana_${s}_${fileRank}.png`);
       }
@@ -126,7 +126,7 @@ describe('images mapping - url lookup', () => {
   });
 
   it('fallback to card back when missing', () => {
-    const url = getCardImagePath({ type: 'minor', suit: 'cups', value: '11' } as any);
+    const url = getCardImagePath({ type: 'minor', suit: 'cups', value: '11' });
     expect(url).toBe(fallbackUrl);
     expect(warnSpy).toHaveBeenCalled();
   });
@@ -150,14 +150,14 @@ describe('images mapping - major normalization compatibility', () => {
 
   it('getCardImageFilename normalizes to correct slug', () => {
     for (const [input, slug] of cases) {
-      const fn = getCardImageFilename({ type: 'major', value: input } as any);
+      const fn = getCardImageFilename({ type: 'major', value: input });
       expect(fn).toBe(`major_arcana_${slug}.png`);
     }
   });
 
   it('getCardImagePath resolves to existing url (not fallback)', () => {
     for (const [input, slug] of cases) {
-      const url = getCardImagePath({ type: 'major', value: input } as any);
+      const url = getCardImagePath({ type: 'major', value: input });
       expect(url).not.toBe(fallbackUrl);
       expect(url).toContain(`major_arcana_${slug}.png`);
     }

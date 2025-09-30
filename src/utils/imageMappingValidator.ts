@@ -3,7 +3,7 @@
  * 基于 Tarot API 的78张标准卡牌，验证图片映射是否完整覆盖
  */
 
-import { getCardImagePath, getCardImageFilename, type TarotCardLite } from './images';
+import { getCardImagePath, getCardImageFilename, type TarotCardLite, type SuitType } from './images';
 
 // API 标准的78张卡牌配置（与 tarotService.ts 的 buildLocalFallback78 保持一致）
 const STANDARD_78_CARDS: TarotCardLite[] = [
@@ -31,7 +31,7 @@ const STANDARD_78_CARDS: TarotCardLite[] = [
     'sun',
     'judgement',
     'world',
-  ].map((value, index) => ({
+  ].map((value) => ({
     type: 'major' as const,
     value,
     suit: undefined,
@@ -83,7 +83,7 @@ export function validateImageMappingCoverage(): ValidationResult {
   let found = 0;
 
   // 获取卡背URL用于比较（通过故意触发兜底逻辑）
-  const fallbackUrl = getCardImagePath({ type: 'major', value: 'non-existent-card-xxx' } as any);
+  const fallbackUrl = getCardImagePath({ type: 'major', value: 'non-existent-card-xxx' });
 
   for (const card of STANDARD_78_CARDS) {
     const expectedFilename = getCardImageFilename(card);
@@ -150,12 +150,12 @@ export function logValidationReport(): ValidationResult {
 /**
  * 手动诊断特定卡牌的映射情况
  */
-export function diagnoseSpecificCard(type: 'major' | 'minor', value: string, suit?: string): void {
+export function diagnoseSpecificCard(type: 'major' | 'minor', value: string, suit?: SuitType): void {
   if (import.meta.env.DEV) {
-    const card: TarotCardLite = { type, value, suit: suit as any };
+    const card: TarotCardLite = { type, value, suit };
     const filename = getCardImageFilename(card);
     const url = getCardImagePath(card);
-    const fallbackUrl = getCardImagePath({ type: 'major', value: 'non-existent-xxx' } as any);
+    const fallbackUrl = getCardImagePath({ type: 'major', value: 'non-existent-xxx' });
     const isFallback = url === fallbackUrl;
 
     console.group(`🔍 卡牌诊断: ${type === 'major' ? value : `${value} of ${suit}`}`);

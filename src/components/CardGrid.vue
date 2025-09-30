@@ -28,11 +28,8 @@ import {
   reactive,
   ref,
   watch,
-  nextTick,
-  type ComponentPublicInstance,
 } from 'vue';
 import RevealCard from '@/components/RevealCard.vue';
-import { isArrowKey, nextIndexByArrow, type ArrowKey } from '@/utils/a11y';
 
 interface SimpleCard {
   id: string;

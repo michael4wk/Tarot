@@ -45,7 +45,7 @@ describe('withReversal', () => {
 
     // 返回新对象，不与原对象引用相同
     out.forEach((item, idx) => {
-      expect(item).not.toBe(original[idx] as any);
+      expect(item).not.toBe(original[idx]);
       expect(typeof item.isReversed).toBe('boolean');
     });
   });

@@ -31,10 +31,22 @@ function assertNumber(name: string, value: unknown): asserts value is number {
 }
 
 /**
+ * 类型守卫：判断对象是否包含布尔类型的 isReversed 字段
+ */
+function hasIsReversedBoolean(x: unknown): x is { isReversed: boolean } {
+  return (
+    typeof x === 'object' &&
+    x !== null &&
+    'isReversed' in x &&
+    typeof (x as { isReversed: unknown }).isReversed === 'boolean'
+  );
+}
+
+/**
  * 为数组中的每个元素生成 isReversed 字段。
  * 注意：返回新数组与新对象，输入保持不变。
  */
-export function withReversal<T extends Record<string, any>>(
+export function withReversal<T extends object>(
   items: ReadonlyArray<T>,
   options: WithReversalOptions = {},
 ): Array<T & { isReversed: boolean }> {
@@ -59,9 +71,10 @@ export function withReversal<T extends Record<string, any>>(
 
   // 纯函数：不修改原数组及其中对象
   return items.map((item) => {
-    const keepExisting = preserveExisting && typeof (item as any).isReversed === 'boolean';
-    const isReversed = keepExisting ? Boolean((item as any).isReversed) : random() < prob;
+    const keepExisting = preserveExisting && hasIsReversedBoolean(item);
+    const existing = keepExisting ? item.isReversed : undefined;
+    const isReversed = existing !== undefined ? existing : random() < prob;
     // 返回浅拷贝的新对象，附加/保留 isReversed 字段
-    return { ...(item as object), isReversed } as T & { isReversed: boolean };
+    return { ...item, isReversed } as T & { isReversed: boolean };
   });
 }

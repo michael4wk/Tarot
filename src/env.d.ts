@@ -1,46 +1,60 @@
 /// <reference types="vite/client" />
 
-// 为 .vue 单文件组件补充模块声明，
-// 保障编辑器（TS 语言服务 / Volar）在任何扩展状态下都能识别模板内标识符，
-// 避免出现“类型 {} 上不存在属性 …”这类由上下文推断失败引发的误报。
-declare module '*.vue' {
-  import type { DefineComponent } from 'vue';
-  // 使用 unknown 替代 any，以符合 @typescript-eslint/no-explicit-any 规则
-  const component: DefineComponent<Record<string, unknown>, Record<string, unknown>, unknown>;
-  export default component;
-}
-
-// 扩展 Vite 环境变量类型声明（仅声明我们在代码中用到的字段）
 interface ImportMetaEnv {
-  readonly VITE_APP_NAME?: string;
-  readonly VITE_API_BASE?: string;
-  // AI 相关
-  readonly VITE_GEMINI_API_KEY?: string; // 本地开发在 .env.local 配置；切勿提交真实密钥
-  readonly VITE_ENABLE_AI_READING?: 'true' | 'false'; // 默认 'false'
-  readonly VITE_GEMINI_MODEL?: string; // 如 'gemini-1.5-flash' / 'gemini-1.5-pro'
-  // Mock 相关（用于 UI 联调和回退）
-  readonly VITE_USE_MOCK?: 'true' | 'false'; // 默认 'true'
-  readonly VITE_MOCK_DELAY_MIN?: string; // 毫秒，字符串以匹配 Vite env 约定
-  readonly VITE_MOCK_DELAY_MAX?: string; // 毫秒
-  readonly VITE_MOCK_FAIL_RATE?: string; // 0-1 小数的字符串
-
-  // 方案C：受控并发竞速回退（仅脚手架，默认关闭，无行为改动）
-  // - HEDGE_ENABLED：是否启用竞速（'1'/'true' 为开；'0'/'false' 为关），默认关闭
-  readonly VITE_AI_HEDGE_ENABLED?: '0' | '1' | 'true' | 'false';
-  // - HEDGE_DELAY_MS：Zhipu（或第二路）起跑延迟，字符串形式的毫秒数，默认 250
+  readonly VITE_ENABLE_AI_READING?: string;
+  readonly VITE_AI_DEV_PROXY?: string;
+  readonly VITE_GEMINI_API_KEY?: string;
+  readonly VITE_ZHIPU_API_KEY?: string;
+  readonly VITE_GEMINI_MODEL?: string;
+  readonly VITE_ZHIPU_MODEL?: string;
+  readonly VITE_ZHIPU_TEMPERATURE?: string;
+  readonly VITE_ZHIPU_TOP_P?: string;
+  readonly VITE_ZHIPU_MAX_TOKENS?: string;
+  readonly VITE_ZHIPU_FREQ_PENALTY?: string;
+  readonly VITE_GEMINI_RETRIES?: string; // 新增：控制 Gemini 的重试次数（测试可设为 0）
+  readonly VITE_ZHIPU_RETRIES?: string;
+  readonly VITE_DISABLE_ZHIPU?: string;
+  readonly VITE_AI_HEDGE_ENABLED?: string;
   readonly VITE_AI_HEDGE_DELAY_MS?: string;
-  // - ABORT_LOSER：是否中止失败方（'1'/'true' 为启用），默认启用
-  readonly VITE_AI_ABORT_LOSER?: '0' | '1' | 'true' | 'false';
-  // - HEDGE_LOG_LEVEL：日志级别，默认 'warn'
-  readonly VITE_AI_HEDGE_LOG_LEVEL?: 'debug' | 'info' | 'warn' | 'error';
-
-  // Zhipu 仅参数不改提示词：生成参数调优项（可选）
-  readonly VITE_ZHIPU_TEMPERATURE?: string; // 建议 0.7~0.9，默认 0.8
-  readonly VITE_ZHIPU_TOP_P?: string; // 建议 0.8~0.95，默认 0.9
-  readonly VITE_ZHIPU_MAX_TOKENS?: string; // 建议 600~1200，默认 800
-  readonly VITE_ZHIPU_FREQ_PENALTY?: string; // 建议 0~0.5，默认 0.2
+  readonly VITE_AI_ABORT_LOSER?: string;
+  readonly VITE_AI_HEDGE_LOG_LEVEL?: string;
+  readonly VITE_AI_TIMEOUT_MS?: string; // 新增：顺序模式的总超时（当 interpretQuestion 未显式传入时）
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// 以下为全局类型扩展，用于为日志捕获钩子提供类型安全声明
+// 目的：让 globalThis.__HEDGE_LOG_CAPTURE__ 等属性在服务与测试中无需使用 any 即可访问
+// 说明：HedgeGlobals 描述了在运行时可能挂载到 window/globalThis 上的调试与诊断字段
+declare global {
+  // 统一定义日志捕获与诊断相关的全局字段
+  interface HedgeGlobals {
+    // 日志捕获钩子：用于在测试或诊断时拦截日志输出
+    __HEDGE_LOG_CAPTURE__?: (level: string, ...args: unknown[]) => void;
+    // 最近一次事件（诊断用），保持 unknown 以避免 any
+    __HEDGE_LAST_EVENT__?: unknown;
+    // 胜出提供者（诊断用），保持 unknown 以避免 any
+    __HEDGE_WINNER__?: unknown;
+    // 以下为测试与诊断中使用的开关与辅助字段
+    __AI_FORCE_PROXY__?: boolean;
+    __AI_FORCE_GEMINI__?: boolean;
+    __AI_FORCE_ZHIPU__?: boolean;
+    __DEBUG_AI__?: boolean;
+    __HEDGE_GATES__?: unknown;
+    __HEDGE_BRANCH__?: string;
+    __DBG_GETENV__?: unknown;
+    __HEDGE_DEBUG__?: unknown;
+    __TEST_IMPORT_META_ENV__?: Record<string, string | undefined>;
+    __AI_CALL_SEQ__?: unknown[];
+    __CAPTURE_AI_URLS__?: unknown;
+  }
+
+  // 将 HedgeGlobals 混入到全局对象上，便于类型安全访问
+  interface GlobalThis extends HedgeGlobals {}
+  interface Window extends HedgeGlobals {}
+}
+
+// 将本声明文件视为模块，确保全局扩展生效
+export {};

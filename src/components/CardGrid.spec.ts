@@ -26,11 +26,6 @@ function getGrid(wrapper: ReturnType<typeof mount>) {
   return wrapper.find('.card-grid');
 }
 
-// 帮助函数：触发键盘事件
-async function press(wrapper: ReturnType<typeof mount>, key: string) {
-  await getGrid(wrapper).trigger('keydown', { key });
-}
-
 // 模拟浏览器宽度并派发 resize
 function setWidth(width: number) {
   // 通过 defineProperty 临时改写，只在测试进程内有效
@@ -118,6 +113,7 @@ describe('CardGrid', () => {
     const btn = wrapper.find('[role="button"]');
     await btn.trigger('click');
 
+    // 禁用态：不应上报 update:revealed
     const evts = wrapper.emitted<'update:revealed-map'>('update:revealed-map');
     expect(evts).toBeUndefined();
   });

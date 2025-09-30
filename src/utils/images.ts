@@ -135,7 +135,7 @@ export function normalizeMajorValueToSlug(raw: string): string {
   let s = (raw || '')
     .trim()
     .toLowerCase()
-    .replace(/[\s\-]+/g, '_');
+    .replace(/[\s-]+/g, '_');
   if (!s) return s;
 
   // 去除可选前缀 "the_"（API/第三方来源偶尔带有该前缀）
@@ -218,25 +218,25 @@ export function getCardImageFilename(card: TarotCardLite): string {
 
 /**
  * 主函数：返回图片 URL。
- * - 若能在索引中找到对应文件名，则返回构建产出的 URL
- * - 否则返回卡背并打印警告（便于在开发/测试阶段发现缺失资源）
  */
 export function getCardImagePath(card: TarotCardLite): string {
   const filename = getCardImageFilename(card);
+  // 直接按索引表查找
   const url = fileIndex.get(filename);
   if (url) return url;
 
-  // 未命中：输出警告并回退卡背
-  if (import.meta.env?.MODE !== 'production') {
-    // 在测试/开发期输出更可观测的告警
+  // 未命中：返回卡背，并给出一次性的开发警告
+  if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console
-    console.warn(`[images] 未找到卡牌图片文件：${filename}，已回退为卡背。`);
+    console.warn(
+      `[getCardImagePath] 未找到资源: ${filename}，返回卡背（请检查 assets/images/cards 是否存在对应文件）`,
+    );
   }
   return cardBackUrl;
 }
 
 /**
- * 批量辅助：将输入数组转换为 frontSrc 字段。不会改变原对象，返回浅拷贝数组。
+ * 批量附加 frontSrc 字段，便于组件直接渲染
  */
 export function attachFrontSrc<T extends { type: ArcanaType; value: string; suit?: SuitType }>(
   items: T[],

@@ -11,7 +11,7 @@
   - 使用 @vue/test-utils 挂载组件，并通过 attrs 方式监听 update:revealed（对应 v-model:revealed）
   - JSDOM 环境下，样式以行内 style 字符串体现，断言包含关键项而不过度依赖顺序
 */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RevealCard from '@/components/RevealCard.vue';
 

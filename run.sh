@@ -7,6 +7,7 @@
 # 4) 启动本地开发服务器（Vite），默认端口 5173，可通过参数/环境变量覆盖
 # 5) 若端口被占用，自动向上探测可用端口（最多尝试 20 个）
 # 6) 支持 OPEN=1 环境变量自动打开浏览器
+# 7) 运行前环境自检：提示 GEMINI_MODEL/VITE_GEMINI_MODEL 未设置的情况（非注入、仅提示）
 #
 # 使用方式：
 #   1) 首次：给予执行权限 ->  chmod +x run.sh
@@ -41,6 +42,13 @@ if [[ -f "$HOME/.nvm/nvm.sh" ]]; then
   fi
 else
   log_warn "未检测到 nvm（可选）。将使用系统 Node：$(node -v 2>/dev/null || echo '未安装')"
+fi
+
+# 0.5) 环境自检（非侵入式）：提示未设置模型的情况
+GEM_MODEL_VAL="${GEMINI_MODEL:-}"; VITE_GEM_MODEL_VAL="${VITE_GEMINI_MODEL:-}"
+if [[ -z "$GEM_MODEL_VAL" && -z "$VITE_GEM_MODEL_VAL" ]]; then
+  log_warn "未检测到 GEMINI_MODEL/VITE_GEMINI_MODEL。将按默认 gemini-2.0-flash 运行（由代码与代理决定）。"
+  log_warn "建议在 .env.local 显式添加：VITE_GEMINI_MODEL=gemini-2.0-flash，并重启开发服务器以确保一致性。"
 fi
 
 # 1) 打印 Node / npm 版本，便于排查

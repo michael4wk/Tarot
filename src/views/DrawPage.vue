@@ -73,11 +73,9 @@
             line-height: var(--line-height-body);
           "
         />
+        <!-- 开始抽牌按钮：调整属性顺序，使 style 在 @click 之前 -->
         <button
           type="button"
-          @click="hasStarted ? onRedraw() : onStart()"
-          :disabled="startBtnDisabled"
-          :aria-disabled="startBtnDisabled"
           style="
             height: var(--control-height-md);
             padding: 0 16px;
@@ -88,13 +86,15 @@
             cursor: pointer;
           "
           :style="startBtnStyle"
+          :disabled="startBtnDisabled"
+          :aria-disabled="startBtnDisabled"
+          @click="hasStarted ? onRedraw() : onStart()"
         >
           {{ hasStarted ? '重新洗牌' : '开始抽牌' }}
         </button>
         <button
           v-if="DEV"
           type="button"
-          @click="simulateError"
           style="
             height: var(--control-height-md);
             padding: 0 12px;
@@ -103,6 +103,7 @@
             background: transparent;
             color: var(--color-fg);
           "
+          @click="simulateError"
         >
           模拟错误
         </button>
@@ -128,7 +129,6 @@
         <span style="opacity: 0.9">{{ errorMsg }}</span>
         <button
           type="button"
-          @click="retry"
           style="
             margin-left: auto;
             height: 28px;
@@ -139,6 +139,7 @@
             color: var(--color-fg);
             cursor: pointer;
           "
+          @click="retry"
         >
           重试
         </button>
@@ -157,7 +158,6 @@
           v-for="s in suggestions"
           :key="s"
           type="button"
-          @click="question = s"
           style="
             padding: 6px 10px;
             border-radius: 999px;
@@ -169,6 +169,7 @@
             cursor: pointer;
             opacity: 0.9;
           "
+          @click="question = s"
         >
           {{ s }}
         </button>
@@ -211,7 +212,6 @@
       <button
         type="button"
         :disabled="!selectedId || isLoading"
-        @click="goToResult"
         style="
           height: 44px;
           padding: 0 20px;
@@ -225,6 +225,7 @@
           min-width: 200px;
         "
         :aria-disabled="!selectedId || isLoading"
+        @click="goToResult"
       >
         开始解读
       </button>
@@ -333,7 +334,7 @@ async function loadFive() {
   isLoading.value = true;
   try {
     selectedId.value = null;
-    Object.keys(revealedMap).forEach((k) => delete (revealedMap as any)[k]);
+    Object.keys(revealedMap).forEach((k) => delete revealedMap[k]);
     disabledIds.value = [];
     if (deck78.value.length === 0) {
       await ensureDeck();
@@ -359,7 +360,7 @@ function onUpdateMap(payload: { id: string; revealed: boolean }) {
 async function onRedraw() {
   // 允许随时重新洗牌：重置选择、清空翻开状态并重新抽取 5 张
   selectedId.value = null;
-  Object.keys(revealedMap).forEach((k) => delete (revealedMap as any)[k]);
+  Object.keys(revealedMap).forEach((k) => delete revealedMap[k]);
   disabledIds.value = [];
   redrawFive();
 }
@@ -390,7 +391,7 @@ function onStart() {
   hasStarted.value = true; // 标记流程已开始，使卡池替换占位框
   // 清理残留状态后加载五张卡
   selectedId.value = null;
-  Object.keys(revealedMap).forEach((k) => delete (revealedMap as any)[k]);
+  Object.keys(revealedMap).forEach((k) => delete revealedMap[k]);
   disabledIds.value = [];
   loadFive();
 }

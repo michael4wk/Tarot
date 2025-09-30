@@ -208,7 +208,7 @@ describe('小阿尔卡那中文名与元素', () => {
     expect(suitElementZh('swords')).toBe('风');
     expect(suitElementZh('pentacles')).toBe('土');
     // 未知/空值兜底为“—”
-    expect(suitElementZh('unknown' as any)).toBe('—');
-    expect(suitElementZh(undefined as any)).toBe('—');
+    expect(suitElementZh('unknown')).toBe('—');
+    expect(suitElementZh(undefined)).toBe('—');
   });
 });

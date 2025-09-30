@@ -35,9 +35,9 @@
         "
       >
         <span style="opacity: 0.9">{{ errorMsg }}</span>
+        <!-- 错误态重试按钮：调整属性顺序 -->
         <button
           type="button"
-          @click="retry"
           style="
             margin-left: auto;
             height: 32px;
@@ -48,6 +48,7 @@
             color: var(--color-fg);
             cursor: pointer;
           "
+          @click="retry"
         >
           重试
         </button>
@@ -134,7 +135,8 @@
     <section
       style="width: min(100%, 1100px); display: flex; justify-content: center; align-items: center"
     >
-      <button type="button" @click="redo" class="primary-cta">重新占卜</button>
+      <!-- 页脚操作按钮：class 在 @click 之前 -->
+      <button type="button" class="primary-cta" @click="redo">重新占卜</button>
     </section>
   </main>
 </template>

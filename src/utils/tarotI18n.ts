@@ -106,6 +106,10 @@ export function suitElementZh(suit: string | null | undefined): string {
  * TODO: 待确认正式元素/占星映射表后补齐（建议与产品/占星顾问确认 Golden Dawn/Thoth/RWS 的一致性选择）
  */
 export function majorElementZh(_value: string | null | undefined): string {
+  // 该函数目前作为占位实现，返回“—”，不使用传入参数。
+  // 参数名以 _value 形式声明，明确其未被使用，满足 ESLint 的 no-unused-vars 规范。
+  // 占位读取以满足 ESLint：避免未使用变量报错
+  void _value;
   return '—';
 }
 

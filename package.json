@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:ai": "bash ./dev.ai.sh",
     "build": "vite build",
     "preview": "vite preview --strictPort",
     "lint": "eslint . --ext .ts,.tsx,.vue,.js,.jsx",
@@ -26,6 +27,7 @@
     ]
   },
   "dependencies": {
+    "undici": "7.16.0",
     "vue": "^3.4.0",
     "vue-router": "^4.5.1"
   },
