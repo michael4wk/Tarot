@@ -1131,15 +1131,31 @@ async function tryGeminiInterpret(
 
   // 发送请求：代理优先（避免在浏览器暴露密钥）；如未启用代理则直连上游
   let json: unknown;
+  const baseUrl = String(env['VITE_AI_BASE_URL'] ?? '').trim();
   if (proxyOn) {
-    // 通过 Vite dev server 的 /api/ai/gemini/generate 代理上游
     const callUrl = '/api/ai/gemini/generate';
     if (import.meta.env.DEV) {
       try {
         const g = globalThis as unknown as { __AI_CALL_SEQ__?: Array<{ provider: string; url: string }> };
         g.__AI_CALL_SEQ__ = g.__AI_CALL_SEQ__ ?? [];
         g.__AI_CALL_SEQ__.push({ provider: 'gemini', url: callUrl });
-      } catch { /* no-op */ void 0; }
+      } catch { void 0; }
+    }
+    json = await postJsonWithRetry(callUrl, body, {
+      timeoutMs: 10000,
+      retries: gemRetries,
+      baseDelayMs: 300,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      signal: opts.signal,
+    });
+  } else if (baseUrl) {
+    const callUrl = `${baseUrl.replace(/\/+$/,'')}/api/ai/gemini/generate`;
+    if (import.meta.env.DEV) {
+      try {
+        const g = globalThis as unknown as { __AI_CALL_SEQ__?: Array<{ provider: string; url: string }> };
+        g.__AI_CALL_SEQ__ = g.__AI_CALL_SEQ__ ?? [];
+        g.__AI_CALL_SEQ__.push({ provider: 'gemini', url: callUrl });
+      } catch { void 0; }
     }
     json = await postJsonWithRetry(callUrl, body, {
       timeoutMs: 10000,
@@ -1149,14 +1165,13 @@ async function tryGeminiInterpret(
       signal: opts.signal,
     });
   } else {
-    // 直连 Google API：将模型与密钥写入查询串
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     if (import.meta.env.DEV) {
       try {
         const g = globalThis as unknown as { __AI_CALL_SEQ__?: Array<{ provider: string; url: string }> };
         g.__AI_CALL_SEQ__ = g.__AI_CALL_SEQ__ ?? [];
         g.__AI_CALL_SEQ__.push({ provider: 'gemini', url });
-      } catch { /* no-op */ void 0; }
+      } catch { void 0; }
     }
     json = await postJsonWithRetry(url, body, {
       timeoutMs: 10000,
@@ -1275,15 +1290,31 @@ async function tryZhipuInterpret(
 
   // 发送请求：代理优先（避免在浏览器暴露密钥）；如未启用代理则直连上游
   let json: unknown;
+  const baseUrl = String(env['VITE_AI_BASE_URL'] ?? '').trim();
   if (proxyOn) {
-    // 通过 Vite dev server 的 /api/ai/zhipu 代理上游
     const callUrl = '/api/ai/zhipu';
     if (import.meta.env.DEV) {
       try {
         const g = globalThis as unknown as { __AI_CALL_SEQ__?: Array<{ provider: string; url: string }> };
         g.__AI_CALL_SEQ__ = g.__AI_CALL_SEQ__ ?? [];
         g.__AI_CALL_SEQ__.push({ provider: 'zhipu', url: callUrl });
-      } catch { /* no-op */ void 0; }
+      } catch { void 0; }
+    }
+    json = await postJsonWithRetry(callUrl, body, {
+      timeoutMs: 10000,
+      retries: parseInt(String(env['VITE_ZHIPU_RETRIES'] ?? '1'), 10),
+      baseDelayMs: 300,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      signal: opts.signal,
+    });
+  } else if (baseUrl) {
+    const callUrl = `${baseUrl.replace(/\/+$/,'')}/api/ai/zhipu`;
+    if (import.meta.env.DEV) {
+      try {
+        const g = globalThis as unknown as { __AI_CALL_SEQ__?: Array<{ provider: string; url: string }> };
+        g.__AI_CALL_SEQ__ = g.__AI_CALL_SEQ__ ?? [];
+        g.__AI_CALL_SEQ__.push({ provider: 'zhipu', url: callUrl });
+      } catch { void 0; }
     }
     json = await postJsonWithRetry(callUrl, body, {
       timeoutMs: 10000,
@@ -1293,14 +1324,13 @@ async function tryZhipuInterpret(
       signal: opts.signal,
     });
   } else {
-    // 直连 Zhipu API：携带 Authorization Bearer token
     const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
     if (import.meta.env.DEV) {
       try {
         const g = globalThis as unknown as { __AI_CALL_SEQ__?: Array<{ provider: string; url: string }> };
         g.__AI_CALL_SEQ__ = g.__AI_CALL_SEQ__ ?? [];
         g.__AI_CALL_SEQ__.push({ provider: 'zhipu', url });
-      } catch { /* no-op */ void 0; }
+      } catch { void 0; }
     }
     json = await postJsonWithRetry(url, body, {
       timeoutMs: 10000,
