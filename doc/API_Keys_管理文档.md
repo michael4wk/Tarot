@@ -6,33 +6,49 @@
 
 - **服务名称**：Tarot API
 - **官网**：https://tarotapi.dev/
-- **API Key**：使用环境变量管理，禁止在文档和代码中展示真实值
+- **API Key**：不需要。该公共 API 完全免费、无需注册。
 - **用途**：获取78张塔罗牌的基础数据（牌名、含义、描述等）
 - **特点**：完全免费，无需注册，无限制调用
-- **注意**：API不提供卡牌图片，需要使用本地图片资源
+- **注意**：API 不提供卡牌图片，需要使用本地图片资源；调用时不应携带任何鉴权头（例如 Authorization）。
 
 ### 2. Gemini AI API
 
 - **服务名称**：Google Gemini AI
-- **API Key**：使用环境变量管理，禁止在文档和代码中展示真实值
-- **用途**：AI解读生成，智能塔罗牌解释
+- **API Key**：仅在后端（Serverless/服务端）通过环境变量管理，禁止在前端注入或展示真实值
+- **用途**：AI 解读生成，智能塔罗牌解释
 - **模型版本**：gemini-1.5-flash（稳定版本）
-- **集成方式**：通过Google AI SDK
+- **集成方式**：后端使用官方 SDK 或 HTTPS API；前端通过后端路由转发
 
 ## 🔐 安全管理规范
 
-### 环境变量配置
+### 环境变量配置（前后端分离）
+
+#### 前端（Web）
+
+仅保留非敏感配置；不在前端注入任何真实 API 密钥。
 
 ```bash
-# .env 文件配置（示例：请放入 .env.local 私有文件，不要提交到仓库）
-VITE_TAROT_API_KEY=your_tarot_api_key_here
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
+# 开发模式（本地）示例：放入 .env.local（不提交）
+VITE_AI_DEV_PROXY=1                 # 启用本地开发代理插件，避免密钥泄露
+VITE_GEMINI_MODEL=gemini-1.5-flash  # 模型选择（非敏感，可前端注入）
 
-# 生产/开发模型配置示例
-VITE_GEMINI_MODEL=gemini-1.5-flash
-VITE_ENABLE_AI_READING=true
-VITE_ENABLE_CARD_VALIDATION=true
-VITE_USE_UNIQUE_ID_INDEXING=true
+# 生产模式（Vercel 项目 "tarot"）示例：在 Vercel Dashboard → Settings → Environment Variables 配置
+VITE_AI_DEV_PROXY=0                 # 关闭前端直连与开发代理
+VITE_AI_BASE_URL=https://tarot-backend.vercel.app  # 后端基座域名（或自定义域名）
+VITE_GEMINI_MODEL=gemini-1.5-flash  # 前端可见的非敏感配置
+```
+
+#### 后端（Serverless / Vercel 项目，推荐名称：tarot-backend）
+
+所有敏感密钥只存放在后端项目的环境变量中：
+
+```bash
+# Vercel Dashboard（后端项目）中配置：
+GEMINI_API_KEY=********            # Google Gemini API 密钥（敏感，不出前端）
+ZHIPU_API_KEY=********             # 可选：智谱 API 密钥（敏感，不出前端）
+AI_PROXY_TIMEOUT_MS=8000           # 代理超时配置（非敏感）
+GEMINI_MODEL=gemini-1.5-flash      # 后端默认模型（可与前端保持一致）
+ALLOWED_ORIGINS=https://tarot.vercel.app,https://your-custom-domain.com  # CORS 白名单
 ```
 
 ### .gitignore 配置
@@ -47,27 +63,35 @@ config/keys.js
 *.pem
 ```
 
-### 代码中的使用方式（Vite）
+### 前端调用方式（安全范式）
+
+前端不读取任何敏感密钥；所有 AI 请求通过后端安全路由进行：
 
 ```javascript
-// 通过 import.meta.env 读取 Vite 注入的环境变量
-const TAROT_API_KEY = import.meta.env.VITE_TAROT_API_KEY;
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// 从前端环境读取后端基座地址（非敏感）
+const AI_BASE_URL = import.meta.env.VITE_AI_BASE_URL;
 
-// API调用示例
-const headers = {
-  Authorization: `Bearer ${TAROT_API_KEY}`,
-  'Content-Type': 'application/json',
-};
+// 通过后端路由调用 Gemini（示例）
+async function generateReading(payload) {
+  const res = await fetch(`${AI_BASE_URL}/api/ai/gemini/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    // 不在前端携带任何密钥头；鉴权与密钥处理由后端完成
+  });
+  if (!res.ok) throw new Error('AI 服务不可用');
+  return await res.json();
+}
 ```
 
 ## ⚠️ 重要安全提醒
 
 1. 绝不在代码或文档中硬编码API密钥
-2. 使用环境变量管理敏感信息，并存放在 .env.local
+2. 使用环境变量管理敏感信息，并存放在 .env.local（前端仅非敏感；密钥仅后端）
 3. 确保 .env\* 文件在 .gitignore 中
 4. 定期轮换API密钥（发现泄露时立即更换）
 5. 监控API使用量和异常调用
+6. 生产环境禁止将 GEMINI_API_KEY 作为 `VITE_*` 变量注入前端；密钥只能在后端配置
 
 ## 📊 API使用监控
 
@@ -95,4 +119,4 @@ const headers = {
 
 **最后更新**：2025年
 **维护人员**：项目开发团队
-**文档版本**：v1.1.0（已统一 VITE\_\* 前缀，移除硬编码密钥）
+**文档版本**：v1.2.0（前后端分离；密钥仅后端；前端不注入密钥）

@@ -47,34 +47,25 @@ python verify_gemini_api.py
 - 💰 推荐付费模型：`gemini-2.5-flash-lite`（性价比最佳）
 - 📈 免费限制：每日25个请求，启用计费账户后可提升至100个请求（仍免费）
 
-### 2. 配置环境变量
+### 2. 配置环境变量（前后端分离）
 
-1. 在项目根目录创建 `.env` 文件：
-
-```bash
-cp .env.example .env
-```
-
-2. 编辑 `.env` 文件，添加您的 API Key：
+不在前端注入任何真实 API 密钥；仅在后端配置敏感信息。
 
 ```env
-# Gemini API 配置
-VITE_GEMINI_API_KEY=your_actual_api_key_here
-VITE_ENABLE_AI_READING=true
+# 前端（Web）.env.local（本地开发，不提交）
+VITE_AI_DEV_PROXY=1                 # 启用开发代理，避免密钥暴露
+VITE_GEMINI_MODEL=gemini-1.5-flash  # 非敏感模型选择
 
-# API 版本选择（推荐使用 gemini-1.5-flash 稳定版本）
-VITE_GEMINI_MODEL=gemini-1.5-flash
-# 其他可选版本：
-# VITE_GEMINI_MODEL=gemini-1.5-flash-latest    # 最新版本（可能不稳定）
-# VITE_GEMINI_MODEL=gemini-1.5-flash-8b        # 轻量版本
-# 付费版本选择（2025年最新）：
-# VITE_GEMINI_MODEL=gemini-2.5-flash-lite      # 推荐：性价比最高
-# VITE_GEMINI_MODEL=gemini-2.5-flash           # 最佳效果，成本较高
-# VITE_GEMINI_MODEL=gemini-2.0-flash           # 新版本选择
+# 前端（生产，Vercel 项目 "tarot"）
+VITE_AI_DEV_PROXY=0                 # 生产关闭前端代理
+VITE_AI_BASE_URL=https://tarot-backend.vercel.app  # 后端基座地址
+VITE_GEMINI_MODEL=gemini-1.5-flash  # 非敏感配置
 
-# 数据一致性配置
-VITE_ENABLE_CARD_VALIDATION=true
-VITE_USE_UNIQUE_ID_INDEXING=true
+# 后端（Vercel 项目，推荐名称：tarot-backend）
+GEMINI_API_KEY=********             # 敏感密钥，仅后端
+AI_PROXY_TIMEOUT_MS=8000            # 非敏感运行参数
+GEMINI_MODEL=gemini-1.5-flash       # 后端默认模型
+ALLOWED_ORIGINS=https://tarot.vercel.app
 ```
 
 ### 3. 重启开发服务器
@@ -122,54 +113,42 @@ npm run dev
 
 ## 🔧 技术实现细节
 
-### 五段式AI增强解读架构 (v2.3.0)
+### 五段式 AI 增强解读架构（v2.3.0）
 
-当前系统采用 `ProfessionalReadingEngine.js` 实现的五段式AI增强解读架构：
+保留五段式业务架构；AI 调用改为“前端 → 后端路由 → Gemini API”的安全链路：
 
-1. **牌面识别阶段** - 基础牌面信息提取
-2. **元素能量分析** - 四大元素能量分析
-3. **层次深度分析** - 多层次牌面含义解读
-4. **情境融合解读** - 结合用户问题的情境化分析
-5. **AI智能解读** - Gemini AI增强的个性化解读
+1. 牌面识别阶段 - 基础牌面信息提取
+2. 元素能量分析 - 四大元素能量分析
+3. 层次深度分析 - 多层次牌面含义解读
+4. 情境融合解读 - 结合用户问题的情境化分析
+5. AI 智能解读 - 后端持密钥调用 Gemini，前端仅消费结果
 
-### AIReadingService 类（2025年更新版）
+### 前端调用后端 API（安全示例）
 
 ```javascript
-class AIReadingService {
-  constructor() {
-    this.apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    // 支持多版本API切换（默认使用免费版本）
-    this.modelVersion = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';}]}}}
-    this.baseURL = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelVersion}:generateContent`;
-    this.thinkingBudget = 0; // 禁用思考模式以控制成本
-  }
+// 前端不持有密钥，通过后端路由调用 AI 服务
+const AI_BASE_URL = import.meta.env.VITE_AI_BASE_URL;
 
-  async generateEnhancedReading(cards, question, baseReading) {
-    // 验证卡牌数据一致性（使用唯一标识符）
-    this.validateCardData(cards);
+export async function generateEnhancedReading(cards, question, baseReading) {
+  // 统一数据验证
+  validateCardData(cards);
 
-    // 构建专业Prompt模板
-    const prompt = this.buildProfessionalPrompt(cards, question, baseReading);
+  const payload = {
+    cards,
+    question,
+    baseReading,
+    model: import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash',
+  };
 
-    try {
-      // 真实API调用（支持2.5版本）
-      const response = await this.callGeminiAPI(prompt);
-      return this.parseStructuredResponse(response);
-    } catch (error) {
-      console.error('Gemini API调用失败:', error);
-      // 降级处理：返回基础解读
-      return this.createFallbackReading(baseReading);
-    }
-  }
+  const res = await fetch(`${AI_BASE_URL}/api/ai/gemini/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 
-  // 数据一致性验证（使用唯一标识符）
-  validateCardData(cards) {
-    cards.forEach(card => {
-      if (!card.uniqueId || !card.name) {
-        throw new Error(`卡牌数据不完整: ${JSON.stringify(card)}`);
-      }
-    });
-  }
+  if (!res.ok) throw new Error('Gemini 服务暂不可用');
+  const data = await res.json();
+  return parseStructuredResponse(data);
 }
 ```
 
@@ -236,15 +215,23 @@ buildProfessionalPrompt(cards, question, baseReading) {
 
 ### 数据保护
 
-- **不存储用户问题**：解读完成后立即清除
-- **API 加密传输**：HTTPS 安全连接
-- **本地处理**：敏感信息不上传到第三方
+- 不存储用户问题：解读完成后立即清除
+- API 加密传输：HTTPS 安全连接
+- 敏感信息仅在后端：前端不持有密钥；后端通过环境变量注入
 
 ### 错误处理
 
-- **API 限额**：优雅降级到优化模板
-- **网络异常**：自动重试机制
-- **解析失败**：回退到备用解读
+- API 限额：优雅降级到优化模板
+- 网络异常：自动重试机制（后端最多重试 2 次）
+- 解析失败：回退到备用解读
+- CORS 与来源校验：后端仅允许来自 `ALLOWED_ORIGINS` 的请求
+
+## 🏗️ 部署架构与一致性（双仓 + Vercel Hobby）
+
+- 前端仓库（公开）：部署到 Vercel 项目 `tarot`
+- 后端仓库（私有）：部署到 Vercel 项目（推荐名）`tarot-backend`
+- 开发一致性：本地启用 `VITE_AI_DEV_PROXY=1`，保持与生产同等调用接口形态（均走 `/api/ai/...`）
+- 生产安全：前端不注入密钥；后端通过环境变量与路由承接；CORS 白名单限制来源
 
 ## 📊 效果预期
 
