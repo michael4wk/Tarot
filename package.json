@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:ai": "bash ./dev.ai.sh",
-    "build": "git lfs install || true && git config -f .lfsconfig lfs.url https://github.com/michael4wk/Tarot.git/info/lfs && git lfs fetch --include='assets/images/**' && git lfs checkout --include='assets/images/**' && vite build",
+    "build": "git lfs install || true && git lfs fetch || true && git lfs checkout assets/images/card_back.svg assets/images/card_logo.png assets/images/cards/* || true && npm ci && vite build",
     "preview": "vite preview --strictPort",
     "lint": "eslint . --ext .ts,.tsx,.vue,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.vue,.js,.jsx --fix && prettier . --write",
