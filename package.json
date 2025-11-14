@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:ai": "bash ./dev.ai.sh",
-    "build": "git lfs install || true && git lfs pull origin \"$VERCEL_GIT_COMMIT_REF\" --include=\"assets/images/**\" || git lfs pull --include=\"assets/images/**\" || true && vite build",
+    "build": "git lfs install || true && git config -f .lfsconfig lfs.url https://github.com/michael4wk/Tarot.git/info/lfs && git lfs fetch --include='assets/images/**' && git lfs checkout --include='assets/images/**' && vite build",
     "preview": "vite preview --strictPort",
     "lint": "eslint . --ext .ts,.tsx,.vue,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.vue,.js,.jsx --fix && prettier . --write",
