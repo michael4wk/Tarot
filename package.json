@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:ai": "bash ./dev.ai.sh",
-    "build": "vite build",
+    "build": "git lfs install || true && git lfs fetch --all || true && git lfs checkout || true && vite build",
     "preview": "vite preview --strictPort",
     "lint": "eslint . --ext .ts,.tsx,.vue,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.vue,.js,.jsx --fix && prettier . --write",

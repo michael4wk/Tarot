@@ -22,22 +22,18 @@ export interface TarotCardLite {
   suit?: SuitType; // 小阿卡纳必需，表示花色
 }
 
-// 1) 建立 cards 目录下所有 png 的索引：key 为文件相对路径，value 为构建产出的 URL
-//    eager + import: 'default' 可以直接得到每个资源的最终 URL 字符串
+// 改为使用 public 静态资源目录：public/cards/
+// 构建后文件将直接位于 /cards/*，避免哈希文件名与 LFS 指针问题
 const cardsGlob = import.meta.glob('../../assets/images/cards/*.png', {
   eager: true,
   import: 'default',
 }) as Record<string, string>;
-
-// 2) 反向索引：以基础文件名（不含路径）作为 key，便于通过规则生成文件名后直接查找
 const fileIndex = new Map<string, string>();
-for (const [path, url] of Object.entries(cardsGlob)) {
-  const base = path.split('/').pop()!; // e.g. "major_arcana_fool.png"
-  fileIndex.set(base, url);
+for (const [p, u] of Object.entries(cardsGlob)) {
+  const base = p.split('/').pop()!;
+  fileIndex.set(base, u);
 }
-
-// 3) 卡背兜底：使用 src 下的卡背，避免与根级 assets 重名造成混淆
-const cardBackUrl = new URL('../assets/images/card_back.svg', import.meta.url).toString();
+const CARD_BACK_URL = new URL('../../assets/images/card_back.svg', import.meta.url).toString();
 
 // 4) 大阿卡纳异常映射表：API 的 value → 文件 slug
 //    - high_priestess → priestess
@@ -221,18 +217,9 @@ export function getCardImageFilename(card: TarotCardLite): string {
  */
 export function getCardImagePath(card: TarotCardLite): string {
   const filename = getCardImageFilename(card);
-  // 直接按索引表查找
   const url = fileIndex.get(filename);
   if (url) return url;
-
-  // 未命中：返回卡背，并给出一次性的开发警告
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[getCardImagePath] 未找到资源: ${filename}，返回卡背（请检查 assets/images/cards 是否存在对应文件）`,
-    );
-  }
-  return cardBackUrl;
+  return CARD_BACK_URL;
 }
 
 /**

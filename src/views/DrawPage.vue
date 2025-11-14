@@ -242,7 +242,7 @@ import { getAllStandardizedCardsCached, pickFiveFromDeck } from '@/services/taro
 // 开发期可视化：图片映射覆盖率校验（仅 DEV 打印报告，无副作用）
 import { logValidationReport } from '@/utils/imageMappingValidator';
 // 引入本地 Logo 资源（相对当前视图路径）
-import cardLogo from '../../assets/images/card_logo.png';
+const cardLogo = '/favicon.png';
 
 // 组件消费层类型：仅需要 id/frontSrc/alt/isReversed
 interface DemoCard {
