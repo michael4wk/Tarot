@@ -1097,8 +1097,9 @@ async function tryGeminiInterpret(
   
   // 直连模式要求提供 API Key；代理模式由 dev server 注入，不在浏览器暴露
   const apiKey = String(env['VITE_GEMINI_API_KEY'] ?? '').trim();
-  if (!enabled || (!proxyOn && !apiKey)) {
-    throw new Error('AI 未启用或缺少密钥');
+  const baseUrlPre = String(env['VITE_AI_BASE_URL'] ?? '').trim();
+  if (!enabled || (!proxyOn && !apiKey && !baseUrlPre)) {
+    throw new Error('AI 未启用或缺少密钥或后端域');
   }
 
   // 获取选中卡片的标准化元信息（用于提示词构建）
@@ -1131,7 +1132,7 @@ async function tryGeminiInterpret(
 
   // 发送请求：代理优先（避免在浏览器暴露密钥）；如未启用代理则直连上游
   let json: unknown;
-  const baseUrl = String(env['VITE_AI_BASE_URL'] ?? '').trim();
+  const baseUrl = baseUrlPre;
   if (proxyOn) {
     const callUrl = '/api/ai/gemini/generate';
     if (import.meta.env.DEV) {
@@ -1248,8 +1249,9 @@ async function tryZhipuInterpret(
 
   // 直连模式要求提供 API Key；代理模式由 dev server 注入，不在浏览器暴露
   const apiKey = String(env['VITE_ZHIPU_API_KEY'] ?? '').trim();
-  if (!proxyOn && !apiKey) {
-    throw new Error('Zhipu 直连模式缺少 API 密钥');
+  const baseUrlPreZ = String(env['VITE_AI_BASE_URL'] ?? '').trim();
+  if (!proxyOn && !apiKey && !baseUrlPreZ) {
+    throw new Error('Zhipu 直连模式缺少 API 密钥或未配置后端域');
   }
 
   // 获取选中卡片的标准化元信息（用于提示词构建）
@@ -1290,7 +1292,7 @@ async function tryZhipuInterpret(
 
   // 发送请求：代理优先（避免在浏览器暴露密钥）；如未启用代理则直连上游
   let json: unknown;
-  const baseUrl = String(env['VITE_AI_BASE_URL'] ?? '').trim();
+  const baseUrl = baseUrlPreZ;
   if (proxyOn) {
     const callUrl = '/api/ai/zhipu';
     if (import.meta.env.DEV) {
