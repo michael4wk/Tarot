@@ -9,3 +9,4 @@ coverage
 .vite
 *.log
 src/log_temp.md
+.vercel

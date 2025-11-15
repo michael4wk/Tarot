@@ -78,7 +78,6 @@ function onToggle(e?: MouseEvent | KeyboardEvent) {
   emit('update:revealed', next);
 }
 
-// 通过构建期 URL 解析引入卡背图，保证 dev/preview/build 一致
 const cardBackUrl = new URL('../../assets/images/card_back.svg', import.meta.url).toString();
 
 // 覆盖层样式：仅使用 opacity 做透明过渡；背景图通过行内 style 注入可被构建处理
