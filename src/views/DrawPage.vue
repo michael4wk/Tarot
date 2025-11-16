@@ -586,7 +586,7 @@ function recomputeOverlayDebounced() {
 }
 
 // 状态变化（开始/抽牌/加载）后重新测量，确保矩形与布局一致
-watch([hasStarted, isLoading, uiCards], async () => {
+watch([hasStarted, isLoading, uiCards, selectedId], async () => {
   await nextTick();
   // 等一帧确保 DOM 与样式完成布局
   requestAnimationFrame(() => recomputeOverlay());
@@ -821,6 +821,7 @@ h1 {
   gap: 12px;
   align-items: center;
   margin-bottom: 8px;
+  min-height: 24px;
 }
 
 /* 标题栏：左 Logo 右标题，保持与 tokens 一致的底部间距由容器控制 */
