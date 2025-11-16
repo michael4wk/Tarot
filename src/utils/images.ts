@@ -219,6 +219,10 @@ export function getCardImagePath(card: TarotCardLite): string {
   const filename = getCardImageFilename(card);
   const url = fileIndex.get(filename);
   if (url) return url;
+  // 缺失图片兜底：输出一次告警便于定位资源问题（测试期要求）
+  // - 仅打印文件名，避免输出过多敏感信息
+  // - 线上可按需调整为限频策略或移除
+  console.warn('[images] fallback to card_back.svg', { filename });
   return CARD_BACK_URL;
 }
 
