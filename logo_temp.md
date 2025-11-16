@@ -1,31 +1,33 @@
-17:05:40.201 Running build in Washington, D.C., USA (East) – iad1
-17:05:40.201 Build machine configuration: 2 cores, 8 GB
-17:05:40.211 Retrieving list of deployment files...
-17:05:40.214 Skipping build cache, deployment was triggered without cache.
-17:05:40.711 Downloading 13 deployment files...
-17:05:41.155 Warning: Detected "engines": { "node": ">=18" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
-17:05:41.155 Running "vercel build"
-17:05:41.559 Vercel CLI 48.10.2
-17:05:42.378 Warning: Detected "engines": { "node": ">=18" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
-17:05:42.384 Installing dependencies...
-17:05:43.723 
-17:05:43.724 up to date in 1s
-17:05:44.091 Using built-in TypeScript 4.9.5 since "typescript" is missing from "devDependencies"
-17:05:45.009 api/ai/gemini/generate.ts(11,20): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
-17:05:45.010 api/ai/gemini/generate.ts(12,19): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
-17:05:45.010 
-17:05:45.035 Warning: Detected "engines": { "node": ">=18" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
-17:05:45.043 Using built-in TypeScript 4.9.5 since "typescript" is missing from "devDependencies"
-17:05:45.057 api/ai/gemini/models.ts(4,18): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
-17:05:45.057 
-17:05:45.064 Warning: Detected "engines": { "node": ">=18" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
-17:05:45.074 Using built-in TypeScript 4.9.5 since "typescript" is missing from "devDependencies"
-17:05:45.084 api/ai/zhipu/generate.ts(11,20): error TS2580: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
-17:05:45.085 
-17:05:45.104 Warning: Detected "engines": { "node": ">=18" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: http://vercel.link/node-version
-17:05:45.112 Using built-in TypeScript 4.9.5 since "typescript" is missing from "devDependencies"
-17:05:45.141 Build Completed in /vercel/output [3s]
-17:05:45.255 Deploying outputs...
-17:05:53.820 Deployment completed
-17:05:54.441 Creating build cache...
-17:05:54.846 Skipping cache upload because no files were prepared
+tarotService-DUtCXWWU.js:9 [tarotService] interpret both providers failed → fallback mock {startedGem: true, startedZhi: true}startedGem: truestartedZhi: true[[Prototype]]: Objectconstructor: ƒ Object()hasOwnProperty: ƒ hasOwnProperty()isPrototypeOf: ƒ isPrototypeOf()propertyIsEnumerable: ƒ propertyIsEnumerable()toLocaleString: ƒ toLocaleString()toString: ƒ toString()valueOf: ƒ valueOf()__defineGetter__: ƒ __defineGetter__()__defineSetter__: ƒ __defineSetter__()__lookupGetter__: ƒ __lookupGetter__()__lookupSetter__: ƒ __lookupSetter__()__proto__: （…）get __proto__: ƒ __proto__()set __proto__: ƒ __proto__()
+R @ tarotService-DUtCXWWU.js:9
+$a @ tarotService-DUtCXWWU.js:9
+await in $a
+j @ ResultPage-DF_TRUsX.js:1
+await in j
+（匿名） @ ResultPage-DF_TRUsX.js:1
+（匿名） @ index-CRUERl-K.js:14
+Jt @ index-CRUERl-K.js:14
+He @ index-CRUERl-K.js:14
+Pn.t.__weh.t.__weh @ index-CRUERl-K.js:14
+ei @ index-CRUERl-K.js:14
+ti @ index-CRUERl-K.js:14
+Promise.then
+Zr @ index-CRUERl-K.js:14
+$o @ index-CRUERl-K.js:14
+Ml @ index-CRUERl-K.js:14
+l.scheduler @ index-CRUERl-K.js:14
+Fo.u.scheduler @ index-CRUERl-K.js:10
+trigger @ index-CRUERl-K.js:10
+ps @ index-CRUERl-K.js:10
+notify @ index-CRUERl-K.js:10
+trigger @ index-CRUERl-K.js:10
+set value @ index-CRUERl-K.js:10
+lt @ index-CRUERl-K.js:22
+（匿名） @ index-CRUERl-K.js:22
+Promise.then
+ee @ index-CRUERl-K.js:22
+M @ index-CRUERl-K.js:22
+Q @ DrawPage-B0-LG_lw.js:1
+Jt @ index-CRUERl-K.js:14
+He @ index-CRUERl-K.js:14
+n @ index-CRUERl-K.js:18

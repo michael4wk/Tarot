@@ -12,6 +12,7 @@
   >
     <!-- 品牌位 + 标题/副文案 + 输入与操作 -->
     <section
+      ref="heroRef"
       class="hero"
       style="
         width: min(100%, 1100px);
@@ -21,6 +22,52 @@
         align-items: stretch;
       "
     >
+      <svg
+        v-if="heroOverlayReady"
+        class="skeleton-overlay hero-overlay"
+        xmlns="http://www.w3.org/2000/svg"
+        :viewBox="`0 0 ${heroBoxW} ${heroBoxH}`"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="skeleton-shimmer-hero" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#111216" stop-opacity="0" />
+            <stop offset="42%" stop-color="#8ab4f8" stop-opacity="0.06" />
+            <stop offset="50%" stop-color="#8ab4f8" stop-opacity="0.18" />
+            <stop offset="58%" stop-color="#8ab4f8" stop-opacity="0.06" />
+            <stop offset="100%" stop-color="#111216" stop-opacity="0" />
+          </linearGradient>
+          <clipPath id="clip-hero">
+            <rect
+              v-for="(r, i) in heroOverlayRects"
+              :key="i"
+              :x="r.x"
+              :y="r.y"
+              :width="r.w"
+              :height="r.h"
+              :rx="r.rx ?? 10"
+            />
+          </clipPath>
+        </defs>
+        <g clip-path="url(#clip-hero)">
+          <rect
+            class="skeleton-shine"
+            x="0"
+            y="0"
+            :width="heroBarW"
+            :height="heroBoxH"
+            fill="url(#skeleton-shimmer-hero)"
+          />
+        </g>
+        <rect
+          class="skeleton-shine-bg"
+          x="0"
+          y="0"
+          :width="heroBarW"
+          :height="heroBoxH"
+          fill="url(#skeleton-shimmer-hero)"
+        />
+      </svg>
       <!-- H1 标题：使用令牌字号/行高，保持8pt网格节奏 -->
       <div
         class="hero-title-bar"
@@ -179,7 +226,64 @@
     <!-- 移除开发辅助区，避免出现双卡区（DEV 专用区已删除） -->
 
     <!-- 卡牌区域：未开始时展示占位，开始后展示真实卡池与操作 -->
-    <section class="card-area" style="width: 100%; padding: 16px; border-radius: 12px">
+    <section
+      ref="cardAreaRef"
+      class="card-area"
+      style="width: 100%; padding: 16px; border-radius: 12px"
+    >
+      <!-- Skeleton 叠加层（SVG）：
+           - 精确还原 `assets/design/skeleton-grid-outline.svg` 的银光条扫过效果
+           - 使用 clipPath 将银光仅限制在“轮廓矩形”内（卡片占位或真实卡面位置）
+           - 不改变任何页面布局与交互，pointer-events: none，位于内容层下方 -->
+      <svg
+        v-if="overlayReady"
+        class="skeleton-overlay"
+        xmlns="http://www.w3.org/2000/svg"
+        :viewBox="`0 0 ${boxW} ${boxH}`"
+        aria-hidden="true"
+      >
+        <defs>
+          <!-- 线性渐变：两端透明，中间银光（与设计稿一致） -->
+          <linearGradient id="skeleton-shimmer" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#111216" stop-opacity="0" />
+            <stop offset="42%" stop-color="#8ab4f8" stop-opacity="0.06" />
+            <stop offset="50%" stop-color="#8ab4f8" stop-opacity="0.18" />
+            <stop offset="58%" stop-color="#8ab4f8" stop-opacity="0.06" />
+            <stop offset="100%" stop-color="#111216" stop-opacity="0" />
+          </linearGradient>
+          <!-- 剪裁路径：由页面实际 DOM 测量得到的矩形集合，保证与当前布局一一对应 -->
+          <clipPath id="clip-all">
+            <rect
+              v-for="(r, i) in overlayRects"
+              :key="i"
+              :x="r.x"
+              :y="r.y"
+              :width="r.w"
+              :height="r.h"
+              :rx="r.rx ?? 10"
+            />
+          </clipPath>
+        </defs>
+        <!-- 银光条（受 clipPath 限制，仅在骨架矩形区域显示） -->
+        <g clip-path="url(#clip-all)">
+          <rect
+            class="skeleton-shine"
+            x="0"
+            y="0"
+            :width="barW"
+            :height="boxH"
+            fill="url(#skeleton-shimmer)"
+          />
+        </g>
+        <rect
+          class="skeleton-shine-bg"
+          x="0"
+          y="0"
+          :width="barW"
+          :height="boxH"
+          fill="url(#skeleton-shimmer)"
+        />
+      </svg>
       <template v-if="!hasStarted">
         <!-- 未开始：展示 5 个卡槽占位（边框示意）；放入与实际卡池相同的限宽容器，保持左边界/布局一致 -->
         <div class="grid-wrap">
@@ -317,7 +421,28 @@ const selectedSummary = computed(() => {
 
 const canStartInterpret = computed(() => !!selectedId.value);
 // CTA 容器引用：选牌完成后滚动进入视口，保证可见性
-const ctaRef = ref<HTMLElement | null>(null);
+  const ctaRef = ref<HTMLElement | null>(null);
+  // Skeleton 叠加层：容器与测量数据
+  const cardAreaRef = ref<HTMLElement | null>(null);
+// SVG viewBox 尺寸（与容器实时同步）
+const boxW = ref(0);
+const boxH = ref(0);
+// 被剪裁的骨架矩形集合（来源于 DOM 实测）
+type OverlayRect = { x: number; y: number; w: number; h: number; rx?: number };
+const overlayRects = ref<OverlayRect[]>([]);
+// 银光条宽度（相对容器宽度自适配，保持设计观感）
+const barW = ref<number>(400);
+// 叠加层就绪标记（需有有效容器尺寸与至少一个矩形）
+  const overlayReady = computed(() => boxW.value > 0 && boxH.value > 0 && overlayRects.value.length > 0);
+  // Hero 叠加层：容器与测量数据
+  const heroRef = ref<HTMLElement | null>(null);
+  const heroBoxW = ref(0);
+  const heroBoxH = ref(0);
+  const heroOverlayRects = ref<OverlayRect[]>([]);
+  const heroBarW = ref<number>(400);
+  const heroOverlayReady = computed(
+    () => heroBoxW.value > 0 && heroBoxH.value > 0 && heroOverlayRects.value.length > 0,
+  );
 
 async function ensureDeck() {
   deck78.value = await getAllStandardizedCardsCached({
@@ -383,6 +508,19 @@ onMounted(() => {
   if (import.meta.env.DEV) {
     logValidationReport();
   }
+  // 初次渲染后进行一次测量（等待 DOM 稳定）
+  nextTick(() => recomputeOverlay());
+  nextTick(() => recomputeHeroOverlay());
+  // 响应窗口尺寸变化：轻微防抖
+  window.addEventListener('resize', recomputeOverlayDebounced);
+  window.addEventListener('resize', recomputeHeroOverlayDebounced);
+});
+
+// 组件卸载：移除监听，避免泄露
+import { onUnmounted, watch } from 'vue';
+onUnmounted(() => {
+  window.removeEventListener('resize', recomputeOverlayDebounced);
+  window.removeEventListener('resize', recomputeHeroOverlayDebounced);
 });
 
 function onStart() {
@@ -394,6 +532,148 @@ function onStart() {
   Object.keys(revealedMap).forEach((k) => delete revealedMap[k]);
   disabledIds.value = [];
   loadFive();
+}
+
+/**
+ * 叠加层测量：
+ * - 读取 `.card-area` 容器尺寸作为 SVG viewBox
+ * - 收集卡片矩形（未开始：`.placeholder-card`；开始后：`.reveal-card`）
+ * - 自适配银光条宽度并注入动画变量（--sweep-from/--sweep-to）
+ */
+function recomputeOverlay() {
+  const area = cardAreaRef.value;
+  if (!area) return;
+  const areaRect = area.getBoundingClientRect();
+  boxW.value = Math.round(areaRect.width);
+  boxH.value = Math.round(areaRect.height);
+
+  const rects: OverlayRect[] = [];
+  // 优先选取真实卡面；未开始时选取占位卡片
+  const nodes = area.querySelectorAll('.reveal-card, .placeholder-card');
+  nodes.forEach((el) => {
+    const r = (el as HTMLElement).getBoundingClientRect();
+    rects.push({
+      x: Math.round(r.left - areaRect.left),
+      y: Math.round(r.top - areaRect.top),
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      rx: 10, // 与视觉骨架圆角一致
+    });
+  });
+  overlayRects.value = rects;
+
+  // 银光条宽度：容器宽度的 35%，上限 400px（与设计稿一致）
+  barW.value = Math.min(400, Math.round(boxW.value * 0.35));
+
+  // 更新动画变量（用于 CSS 关键帧的起止位）
+  nextTick(() => {
+    const svg = area.querySelector('.skeleton-overlay') as HTMLElement | null;
+    if (svg) {
+      svg.style.setProperty('--sweep-from', `${-barW.value}px`);
+      svg.style.setProperty('--sweep-to', `${boxW.value + barW.value}px`);
+    }
+  });
+}
+
+// 轻量防抖：避免 resize 高频触发测量
+let resizeTimer: number | null = null;
+function recomputeOverlayDebounced() {
+  if (resizeTimer) window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(() => {
+    resizeTimer = null;
+    recomputeOverlay();
+  }, 80);
+}
+
+// 状态变化（开始/抽牌/加载）后重新测量，确保矩形与布局一致
+watch([hasStarted, isLoading, uiCards], async () => {
+  await nextTick();
+  // 等一帧确保 DOM 与样式完成布局
+  requestAnimationFrame(() => recomputeOverlay());
+  requestAnimationFrame(() => recomputeHeroOverlay());
+});
+
+/**
+ * Hero 叠加层测量：
+ * - 读取 `.hero` 容器尺寸作为 SVG viewBox
+ * - 收集输入框与主按钮矩形
+ */
+function recomputeHeroOverlay() {
+  const hero = heroRef.value;
+  if (!hero) return;
+  const heroRect = hero.getBoundingClientRect();
+  heroBoxW.value = Math.round(heroRect.width);
+  heroBoxH.value = Math.round(heroRect.height);
+
+  const rects: OverlayRect[] = [];
+  const h1El = hero.querySelector('h1');
+  if (h1El) {
+    const r = (h1El as HTMLElement).getBoundingClientRect();
+    rects.push({
+      x: Math.round(r.left - heroRect.left),
+      y: Math.round(r.top - heroRect.top),
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      rx: 6,
+    });
+  }
+  const pEl = hero.querySelector('p');
+  if (pEl) {
+    const r = (pEl as HTMLElement).getBoundingClientRect();
+    rects.push({
+      x: Math.round(r.left - heroRect.left),
+      y: Math.round(r.top - heroRect.top),
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      rx: 6,
+    });
+  }
+  const inputEl = hero.querySelector('input');
+  if (inputEl) {
+    const r = (inputEl as HTMLElement).getBoundingClientRect();
+    rects.push({
+      x: Math.round(r.left - heroRect.left),
+      y: Math.round(r.top - heroRect.top),
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      rx: 10,
+    });
+  }
+  const btnEls = hero.querySelectorAll('button');
+  if (btnEls && btnEls.length > 0) {
+    btnEls.forEach((el) => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      const rr = Math.round(r.height / 2);
+      rects.push({
+        x: Math.round(r.left - heroRect.left),
+        y: Math.round(r.top - heroRect.top),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        rx: rr,
+      });
+    });
+  }
+  heroOverlayRects.value = rects;
+
+  // 银光条宽度：容器宽度的 35%，上限 400px
+  heroBarW.value = Math.min(400, Math.round(heroBoxW.value * 0.35));
+
+  nextTick(() => {
+    const svg = hero.querySelector('.hero-overlay') as HTMLElement | null;
+    if (svg) {
+      svg.style.setProperty('--sweep-from', `${-heroBarW.value}px`);
+      svg.style.setProperty('--sweep-to', `${heroBoxW.value + heroBarW.value}px`);
+    }
+  });
+}
+
+let heroResizeTimer: number | null = null;
+function recomputeHeroOverlayDebounced() {
+  if (heroResizeTimer) window.clearTimeout(heroResizeTimer);
+  heroResizeTimer = window.setTimeout(() => {
+    heroResizeTimer = null;
+    recomputeHeroOverlay();
+  }, 80);
 }
 </script>
 
@@ -407,6 +687,7 @@ h1 {
    - 桌面端通过 --space-hero-gap-desktop-extra 为 H1 增加额外下边距
    视觉总间距 ≈ 基础 12px + 额外 20px = 32px（方案 C） */
 .hero {
+  position: relative;
   --h1-bottom-extra: 0px;
 }
 @media (min-width: 1024px) {
@@ -523,7 +804,7 @@ h1 {
 .placeholder-card {
   width: 160px; /* 与 RevealCard.width 一致 */
   height: 256px; /* 与 RevealCard.height 一致 */
-  border: 1.5px dashed var(--color-border);
+  border: 1px solid #111216;
   border-radius: 12px;
   background: transparent;
   opacity: 0.7;
@@ -562,5 +843,36 @@ h1 {
     width: 36px;
     height: 36px;
   }
+}
+
+/* SVG Skeleton 叠加层（不影响交互）：置于内容层之下 */
+.skeleton-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.skeleton-shine {
+  will-change: transform;
+  animation: skeleton-sweep var(--skeleton-duration, 2.4s) linear infinite;
+  transform: translateX(var(--sweep-from));
+}
+.skeleton-shine-bg {
+  will-change: transform;
+  animation: skeleton-sweep var(--skeleton-duration, 2.4s) linear infinite;
+  transform: translateX(var(--sweep-from));
+  opacity: 0.06;
+}
+@keyframes skeleton-sweep {
+  0% { transform: translateX(var(--sweep-from)); }
+  100% { transform: translateX(var(--sweep-to)); }
+}
+
+/* 禁用旧聚光灯层（CSS 椭圆）以避免视觉叠加冲突 */
+.card-area::after { display: none !important; }
+
+/* 低动效偏好：关闭银光动画 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shine { animation: none; opacity: 0; }
 }
 </style>
