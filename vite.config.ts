@@ -75,8 +75,7 @@ function aiProxyPlugin(): PluginOption {
           const key = (getEnv('GEMINI_API_KEY') || getEnv('VITE_GEMINI_API_KEY')).toString();
           if (!key) { return sendJson(res, 500, { error: 'Missing GEMINI_API_KEY on dev server' }); }
 
-          // Default model changed to gemini-1.5-flash to avoid upstream 404 when model unset
-          const model = (getEnv('GEMINI_MODEL') || getEnv('VITE_GEMINI_MODEL') || 'gemini-2.0-flash').toString(); // 默认模型调整为 gemini-2.0-flash（更符合当前免费/可用优先的策略），避免 1.5 系列在 v1/v1beta 下的 404
+          const model = (getEnv('GEMINI_MODEL') || getEnv('VITE_GEMINI_MODEL') || 'gemini-2.0-flash').toString();
 
           // Proxy upstream timeout (ms), prefer non-VITE_ key; default 15000ms（更稳妥，弱网/代理下避免误超时）
           const proxyTimeoutMs = Number((getEnv('AI_PROXY_TIMEOUT_MS') || getEnv('VITE_AI_PROXY_TIMEOUT_MS') || '15000').toString());
